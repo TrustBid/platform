@@ -159,7 +159,7 @@ function GeneralTab({ user }: { user: import('@/hooks/useCurrentUser').CurrentUs
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Teléfono</label>
-              <Input placeholder="+57 300 ..." className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700" />
+              <Input placeholder="+__ ___ ___ ____" className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700" />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Rol</label>
