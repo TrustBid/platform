@@ -5,18 +5,16 @@ import { useRouter } from 'next/navigation';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { RecentProjects } from '@/components/ui/RecentProjects';
 import { RecentActivity } from '@/components/ui/RecentActivity';
-import { Button } from '@/components/ui/button';
-import { ModeToggle } from '@/components/ui/mode-toggle';
-import { MetricData, ProjectItem, ActivityEvent } from '@/types/dashboard';
+import { MetricData, ActivityEvent } from '@/types/dashboard';
 import { useProjects } from '@/hooks/useProjects';
 import { useRecentActivity } from '@/hooks/useRecentActivity';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { projects, loading: loadingProjects } = useProjects();
   const { activity } = useRecentActivity();
-
-  const goToProjects = () => router.push('/dashboard/projects');
+  const { user } = useCurrentUser();
 
   const metrics: MetricData[] = useMemo(() => {
     const total = projects.length;
@@ -26,28 +24,16 @@ export default function DashboardPage() {
     const totalSpent = projects.reduce((sum, p) => sum + p.spentAmount, 0);
     const pct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
-    // Sumar montos solo tiene sentido con un único asset; si hay varios, se omite la unidad.
     const assets = new Set(projects.map((p) => p.budgetAsset));
     const unit = assets.size === 1 ? [...assets][0] : undefined;
 
     return [
-      { title: 'Active Projects', value: activeCount, subtitle: `${total} total` },
-      { title: 'Total Budget', value: totalBudget.toLocaleString(), unit, subtitle: `across ${total} project${total === 1 ? '' : 's'}` },
-      { title: 'Executed', value: totalSpent.toLocaleString(), unit, subtitle: `${pct}% of budget` },
-      { title: 'On-chain', value: blockchainCount, subtitle: `${blockchainCount} of ${total} projects` },
+      { title: 'Proyectos activos', value: activeCount, subtitle: `${total} en total` },
+      { title: 'Presupuesto total', value: totalBudget.toLocaleString(), unit, subtitle: `entre ${total} proyecto${total === 1 ? '' : 's'}` },
+      { title: 'Total ejecutado', value: totalSpent.toLocaleString(), unit, subtitle: `${pct}% del presupuesto` },
+      { title: 'Verificados on-chain', value: blockchainCount, subtitle: `${blockchainCount} de ${total} proyectos` },
     ];
   }, [projects]);
-
-  const recentProjects: ProjectItem[] = useMemo(
-    () =>
-      projects.slice(0, 5).map((p) => ({
-        id: p.id,
-        name: p.name,
-        status: p.status,
-        budget: `${p.budgetAmount.toLocaleString()} ${p.budgetAsset}`,
-      })),
-    [projects],
-  );
 
   const activities: ActivityEvent[] = useMemo(
     () =>
@@ -64,39 +50,26 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground p-6 md:p-8 antialiased space-y-8">
 
-      {/* SECCIÓN DE TÍTULO */}
-      <div className="flex justify-between items-center">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">Dashboard</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-500">Overview of your fund management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="default"
-            className="bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 text-sm font-medium rounded-lg"
-            onClick={goToProjects}
-          >
-            + New Project
-          </Button>
-          <ModeToggle />
-        </div>
+      <div className="space-y-1">
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
+          {user ? `Hola, ${user.name.split(' ')[0]}` : 'Dashboard'}
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Resumen de la gestión de tus fondos</p>
       </div>
 
-      {/* SECCIÓN DE MÉTRICAS */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric, index) => (
-          <MetricCard key={index} data={metric} />
+        {metrics.map((metric, i) => (
+          <MetricCard key={i} data={metric} />
         ))}
       </section>
 
-      {/* SECCIÓN DE PANELES */}
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-3">
           <RecentProjects
-            projects={recentProjects}
+            projects={projects}
             loading={loadingProjects}
-            onCreateProject={goToProjects}
-            onSelectProject={(id) => router.push(`/dashboard/projects/${id}`)}
+            onViewAll={() => router.push('/dashboard/projects')}
+            onCreateProject={() => router.push('/dashboard/projects?new=1')}
           />
         </div>
         <div className="lg:col-span-2">

@@ -8,6 +8,8 @@ export const translations = {
       about: 'About',
       contact: 'Contact Us',
       getStarted: 'Get Started',
+      signIn: 'Sign in',
+      viewProjects: 'View public projects',
     },
     hero: {
       eyebrow: 'TRANSPARENCY INFRASTRUCTURE',
@@ -152,6 +154,8 @@ export const translations = {
       about: 'Nosotros',
       contact: 'Contacto',
       getStarted: 'Comenzar',
+      signIn: 'Ingresar',
+      viewProjects: 'Ver proyectos públicos',
     },
     hero: {
       eyebrow: 'INFRAESTRUCTURA DE TRANSPARENCIA',

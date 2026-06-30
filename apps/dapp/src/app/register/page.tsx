@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Building2, Briefcase, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
@@ -11,57 +10,51 @@ import { sep10Login } from '@/lib/auth/sep10';
 import { COUNTRIES } from '@/lib/countries';
 import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
 
-const USER_TYPES = [
-  {
-    id: 'admin',
-    label: 'Administrador ONG',
-    description: 'Gestiona proyectos, fondos y equipo de tu organización.',
-    Icon: Building2,
-  },
-  {
-    id: 'responsable',
-    label: 'Responsable de proyecto',
-    description: 'Ejecuta y reporta el avance de proyectos asignados.',
-    Icon: Briefcase,
-  },
-  {
-    id: 'donante',
-    label: 'Donante / Verificador',
-    description: 'Sigue el destino de tus donaciones con trazabilidad blockchain.',
-    Icon: Eye,
-  },
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+
+const ROLES = [
+  { id: 'admin',        label: 'Administrador',            desc: 'Gestiona proyectos, fondos y equipo.' },
+  { id: 'responsable',  label: 'Responsable de proyecto',  desc: 'Ejecuta y reporta el avance de proyectos.' },
+  { id: 'donante',      label: 'Donante / Verificador',    desc: 'Verifica el destino de fondos.' },
 ] as const;
 
-type UserTypeId = (typeof USER_TYPES)[number]['id'];
+type RoleId = (typeof ROLES)[number]['id'];
+
+const inputCls =
+  'w-full px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-sm text-gray-900 ' +
+  'placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0F52BA]/20 ' +
+  'focus:border-[#0F52BA] transition';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [orgName, setOrgName] = useState('');
-  const [country, setCountry] = useState('');
-  const [userType, setUserType] = useState<UserTypeId>('admin');
+  const [orgName, setOrgName]   = useState('');
+  const [country, setCountry]   = useState('');
+  const [role, setRole]         = useState<RoleId>('admin');
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(null);
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const canSubmit = orgName.trim().length > 0 && country !== '';
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orgName.trim() || !country) return;
+    if (!canSubmit) return;
     setError(null);
     setConnecting(true);
     try {
       const conn = await connectWalletWithModal();
       if (!conn) { setConnecting(false); return; }
-      await sep10Login(conn.address, { orgName: orgName.trim(), country, role: userType, provider: conn.provider });
+      await sep10Login(conn.address, { orgName: orgName.trim(), country, role, provider: conn.provider });
       router.push('/dashboard');
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : '';
-      if (raw === 'NETWORK_MISMATCH') {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'NETWORK_MISMATCH') {
         setError('Tu wallet está en Mainnet. Cambia a Testnet en Freighter → Settings → Network.');
-      } else if (raw === 'USER_REJECTED') {
+      } else if (msg === 'USER_REJECTED') {
         setError('Firma cancelada. Aprueba el challenge en tu wallet para continuar.');
-      } else if (raw.includes('fetch') || raw.includes('Failed')) {
+      } else if (msg.includes('fetch') || msg.includes('Failed')) {
         setError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
       } else {
-        setError(raw || 'No se pudo completar el registro. Intenta de nuevo.');
+        setError(msg || 'No se pudo completar el registro. Intenta de nuevo.');
       }
     } finally {
       setConnecting(false);
@@ -69,112 +62,100 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-background">
-      {/* Lado izquierdo — imagen institucional */}
-      <div className="hidden md:flex relative w-full h-full bg-sidebar select-none items-center justify-center p-12">
+    <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-white">
+      {/* Panel izquierdo */}
+      <div className="hidden md:flex relative w-full h-full bg-[#020817] select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
           <Image
             src={elipseBg}
-            alt="TrustBid Infrastructure"
+            alt="TrustBid"
             priority
-            className="w-full h-auto object-contain max-h-[75vh]"
+            className="w-full h-auto object-contain max-h-[70vh]"
           />
-          <p className="absolute bottom-16 left-0 right-0 text-center text-sm font-medium tracking-wide text-zinc-400/90 max-w-md mx-auto leading-relaxed px-4">
-            Every transaction leaves a trace. Transparent fund management powered by Stellar blockchain.
-          </p>
+          <div className="absolute bottom-12 left-0 right-0 text-center px-4">
+            <p className="text-sm font-semibold text-white/90 tracking-wide">TrustBid</p>
+            <p className="text-xs text-white/50 mt-1 leading-relaxed max-w-xs mx-auto">
+              Transparencia de fondos verificable en Stellar blockchain.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Lado derecho — formulario */}
-      <div className="flex items-center justify-center bg-white dark:bg-zinc-950 p-8 sm:p-12 md:p-16 overflow-y-auto">
+      {/* Panel derecho */}
+      <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 overflow-y-auto">
         <div className="w-full max-w-sm space-y-7">
 
           <div className="space-y-1">
-            <h2 className="text-3xl font-bold tracking-tight text-zinc-950 dark:text-white">Crear cuenta</h2>
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Registra tu organización en TrustBid
-            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">Crear cuenta</h2>
+            <p className="text-sm text-gray-500">Registra tu organización en TrustBid.</p>
           </div>
 
-          <form onSubmit={handleRegister} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Nombre de la organización */}
             <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300" htmlFor="orgName">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="orgName">
                 Nombre de la organización
               </label>
               <input
                 id="orgName"
                 type="text"
-                placeholder="Ej. LATIR ONG"
+                placeholder="Nombre de tu organización"
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all text-sm font-medium"
+                className={inputCls}
                 required
               />
             </div>
 
-            {/* País de la organización */}
             <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300" htmlFor="country">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="country">
                 País
               </label>
-              <select
-                id="country"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all text-sm font-medium"
-              >
-                <option value="" disabled>Selecciona un país</option>
-                {COUNTRIES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="country"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className={cn(inputCls, 'appearance-none pr-10 cursor-pointer')}
+                  required
+                >
+                  <option value="">Seleccionar país</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
+                <svg className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
             </div>
 
-            {/* Tipo de usuario */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                Tipo de usuario
-              </label>
+            <div className="space-y-1.5">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Tu rol
+              </span>
               <div className="space-y-2">
-                {USER_TYPES.map(({ id, label, description, Icon }) => (
+                {ROLES.map(({ id, label, desc }) => (
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setUserType(id)}
+                    onClick={() => setRole(id)}
                     className={cn(
-                      'w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all',
-                      userType === id
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 ring-1 ring-blue-500'
-                        : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-600',
+                      'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition',
+                      role === id
+                        ? 'border-[#0F52BA] bg-[#0F52BA]/5'
+                        : 'border-gray-200 hover:border-gray-300',
                     )}
                   >
-                    <div className={cn(
-                      'shrink-0 p-1.5 rounded-md',
-                      userType === id
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
-                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400',
-                    )}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className={cn(
-                        'text-sm font-semibold',
-                        userType === id ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-900 dark:text-zinc-100',
-                      )}>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm font-semibold', role === id ? 'text-[#0F52BA]' : 'text-gray-900')}>
                         {label}
                       </p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-                        {description}
-                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                     </div>
                     <div className={cn(
-                      'ml-auto shrink-0 h-4 w-4 rounded-full border-2 transition-colors',
-                      userType === id
-                        ? 'border-blue-500 bg-blue-500'
-                        : 'border-zinc-300 dark:border-zinc-600',
+                      'w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors',
+                      role === id ? 'border-[#0F52BA] bg-[#0F52BA]' : 'border-gray-300',
                     )} />
                   </button>
                 ))}
@@ -182,53 +163,54 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                {error}
+              </p>
             )}
 
             <button
               type="submit"
-              disabled={connecting || !orgName.trim() || !country}
-              className="w-full py-3 px-4 bg-[#0F52BA] hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm active:scale-[0.99] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+              disabled={connecting || !canSubmit}
+              className="w-full py-3 px-4 bg-[#0F52BA] hover:bg-blue-700 text-white font-semibold rounded-xl shadow-sm active:scale-[0.99] transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {connecting && (
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               )}
-              {connecting ? 'Conectando wallet…' : 'Registrarse con wallet Stellar'}
+              {connecting ? 'Conectando wallet…' : 'Conectar wallet y crear cuenta'}
             </button>
           </form>
 
-          {/* Riel no-nativo cripto: registro con email/OTP (Privy) */}
           <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+            <span className="h-px flex-1 bg-zinc-200" />
             <span className="text-xs text-zinc-400">o</span>
-            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+            <span className="h-px flex-1 bg-zinc-200" />
           </div>
           <PrivyEmailLogin
             registration={{
               orgName: orgName.trim() || undefined,
               country: country || undefined,
-              role: userType,
+              role,
             }}
           />
 
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
+          <p className="text-xs text-zinc-400 text-center leading-relaxed">
             Compatible con Freighter, Albedo y otras wallets Stellar.<br />
             Tus claves nunca salen de tu wallet.
           </p>
 
-          <div className="text-center text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <p className="text-center text-sm text-gray-400">
             ¿Ya tienes cuenta?{' '}
             <button
               type="button"
               onClick={() => router.push('/login')}
-              className="text-blue-600 hover:underline font-semibold"
+              className="text-[#0F52BA] hover:underline font-semibold"
             >
               Iniciar sesión
             </button>
-          </div>
+          </p>
 
         </div>
       </div>
