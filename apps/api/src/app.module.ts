@@ -6,17 +6,21 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PublicModule } from './modules/public/public.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { OrgModule } from './modules/org/org.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'] }),
     DatabaseModule,
     AuthModule,
     PublicModule,
     ProjectsModule,
+    OrgModule,
+    ReportsModule,
     OrganizationsModule,
   ],
   controllers: [AppController],

@@ -3,10 +3,18 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { FolderPlus, ArrowUpRight } from 'lucide-react';
-import { ProjectItem } from '@/types/dashboard';
+
+interface ProjectRow {
+  id: string;
+  name: string;
+  status: string;
+  budgetAmount: number;
+  spentAmount: number;
+  budgetAsset: string;
+}
 
 interface RecentProjectsProps {
-  projects: ProjectItem[];
+  projects: ProjectRow[];
   loading?: boolean;
   onViewAll?: () => void;
   onCreateProject?: () => void;

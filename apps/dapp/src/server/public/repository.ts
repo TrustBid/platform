@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type {
   DonationInput,
   DonationIntent,
@@ -12,14 +11,15 @@ import { NGO, PROJECTS } from './seed';
 /**
  * Capa de datos del portal público — ÚNICO punto de conexión al backend.
  *
- * Si `BACKEND_URL` está configurada, todos los datos vienen del backend real.
- * Si no, se usa el seed provisional (`./seed.ts`). La UI nunca sabe la diferencia:
- * consume estos métodos (vía Server Components) o los Route Handlers (`/api/public/*`).
- *
- * Para conectar el backend: definir `BACKEND_URL` y exponer en él las rutas equivalentes
- * (`/ngo`, `/projects`, `/projects/:id`, `/donations`). No hay que tocar la UI.
+ * Por defecto consume el backend real (misma URL que los Route Handlers, vía
+ * NEXT_PUBLIC_API_URL); `BACKEND_URL` permite override server-side. El seed
+ * (`./seed.ts`) queda como fallback resiliente si el backend no responde, para
+ * que el portal público nunca muestre una página rota.
  */
-const BACKEND_URL = process.env.BACKEND_URL;
+const BACKEND_URL =
+  process.env.BACKEND_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'https://api-production-9557.up.railway.app';
 
 async function backendGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
@@ -58,18 +58,23 @@ function toSummary(p: Project): ProjectSummary {
 }
 
 export async function getNgo(): Promise<NgoInfo> {
-  if (BACKEND_URL) return backendGet<NgoInfo>('/ngo');
-  return NGO;
+  try {
+    return await backendGet<NgoInfo>('/ngo');
+  } catch {
+    return NGO;
+  }
 }
 
 export async function listProjects(query: ProjectsQuery = {}): Promise<ProjectSummary[]> {
   const { q, category } = query;
-  if (BACKEND_URL) {
+  try {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (category) params.set('category', category);
     const qs = params.toString();
-    return backendGet<ProjectSummary[]>(`/projects${qs ? `?${qs}` : ''}`);
+    return await backendGet<ProjectSummary[]>(`/projects${qs ? `?${qs}` : ''}`);
+  } catch {
+    // fallback al seed
   }
   let items = PROJECTS.map(toSummary);
   if (category && category !== 'all') {
@@ -86,39 +91,27 @@ export async function listProjects(query: ProjectsQuery = {}): Promise<ProjectSu
 }
 
 export async function listCategories(): Promise<string[]> {
-  if (BACKEND_URL) return backendGet<string[]>('/categories');
-  return Array.from(new Set(PROJECTS.map((p) => p.category)));
+  try {
+    return await backendGet<string[]>('/categories');
+  } catch {
+    return Array.from(new Set(PROJECTS.map((p) => p.category)));
+  }
 }
 
 export async function getProject(id: string): Promise<Project | null> {
-  if (BACKEND_URL) {
-    try {
-      return await backendGet<Project>(`/projects/${id}`);
-    } catch {
-      return null;
-    }
+  try {
+    return await backendGet<Project>(`/projects/${id}`);
+  } catch {
+    return PROJECTS.find((p) => p.id === id) ?? null;
   }
-  return PROJECTS.find((p) => p.id === id) ?? null;
 }
 
 export async function createDonation(input: DonationInput): Promise<DonationIntent> {
-  if (BACKEND_URL) {
-    const res = await fetch(`${BACKEND_URL}/donations`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw new Error(`Backend /donations → ${res.status}`);
-    return res.json() as Promise<DonationIntent>;
-  }
-  // Sin backend: se crea una intención "pending". El código de verificación on-chain
-  // lo completará el backend al confirmar/anclar la transacción.
-  return {
-    id: randomUUID(),
-    projectId: input.projectId,
-    amountUsd: input.amountUsd,
-    status: 'pending',
-    verificationCode: null,
-    createdAt: new Date().toISOString(),
-  };
+  const res = await fetch(`${BACKEND_URL}/donations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Backend /donations → ${res.status}`);
+  return res.json() as Promise<DonationIntent>;
 }

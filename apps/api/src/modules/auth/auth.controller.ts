@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -15,6 +16,8 @@ import { CurrentUser } from '../../common/decorators/org.decorator';
 import { AuthService } from './auth.service';
 import { ChallengeQueryDto } from './dto/challenge-query.dto';
 import { TokenRequestDto } from './dto/token-request.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
+import { PrivyLoginDto } from './dto/privy-login.dto';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
@@ -33,7 +36,16 @@ export class AuthController {
   @Post('token')
   @HttpCode(200)
   issueToken(@Body() body: TokenRequestDto) {
-    return this.authService.verifyAndIssueToken(body.transaction);
+    return this.authService.verifyAndIssueToken(body.transaction, body.registration);
+  }
+
+  // POST /auth/privy { token } → valida token Privy (JWKS), lee wallet Stellar
+  // embebida y emite JWT de TrustBid. Riel para usuarios no nativos cripto.
+  @Public()
+  @Post('privy')
+  @HttpCode(200)
+  privyLogin(@Body() body: PrivyLoginDto) {
+    return this.authService.loginWithPrivy(body.token, body.registration);
   }
 
   // POST /auth/refresh → JWT renovado (mismas claims)
@@ -54,5 +66,11 @@ export class AuthController {
   @Get('me')
   getMe(@CurrentUser() user: { sub: string }) {
     return this.authService.getMe(user.sub);
+  }
+
+  // PATCH /auth/me → actualizar nombre / teléfono del usuario
+  @Patch('me')
+  updateMe(@CurrentUser() user: { sub: string }, @Body() body: UpdateMeDto) {
+    return this.authService.updateMe(user.sub, body);
   }
 }

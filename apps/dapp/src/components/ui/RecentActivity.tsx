@@ -1,11 +1,24 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, ArrowUpRight, Receipt, ExternalLink } from 'lucide-react';
 import { ActivityEvent } from '@/types/dashboard';
 
 interface RecentActivityProps {
   events: ActivityEvent[];
+}
+
+const TYPE_ICON: Record<ActivityEvent['type'], React.ComponentType<{ className?: string }>> = {
+  verification: ShieldCheck,
+  disbursement: ArrowUpRight,
+  expense: Receipt,
+};
+
+function formatWhen(timestamp: string): string {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 export const RecentActivity: React.FC<RecentActivityProps> = ({ events }) => {
@@ -32,7 +45,33 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ events }) => {
         </div>
       ) : (
         <div className="space-y-4 flex-1 overflow-y-auto">
-          {/* Listado de eventos on-chain */}
+          {events.map((e) => {
+            const Icon = TYPE_ICON[e.type] ?? ArrowUpRight;
+            return (
+              <div key={e.id} className="flex items-start gap-3">
+                <div className="mt-0.5 p-2 bg-muted rounded-lg text-muted-foreground shrink-0">
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-zinc-900 dark:text-zinc-100 leading-snug break-words">{e.description}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-slate-600 dark:text-slate-500">{formatWhen(e.timestamp)}</span>
+                    {e.txHash && (
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${e.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {e.txHash.slice(0, 8)}…
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

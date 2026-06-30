@@ -22,9 +22,27 @@ import { randomBytes, randomUUID } from 'crypto';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { REDIS_CLIENT } from './auth.constants';
+import { PrivyService } from './privy.service';
 
 const NONCE_TTL = 600; // 10 minutes
 const AUTH_DOMAIN = 'trustbid auth';
+
+// Datos opcionales del formulario de registro, usados solo en el bootstrap inicial.
+interface RegistrationData {
+  orgName?: string;
+  country?: string;
+  role?: string;
+  provider?: string;
+}
+
+// Valores válidos del enum wallet_provider (init-db + migración sprint5).
+// Mirror del enum wallet_provider de Postgres / canónico en @trustbid/types.
+const WALLET_PROVIDERS = new Set([
+  'freighter', 'albedo', 'custodial', 'xbull', 'rabet', 'lobstr', 'hana', 'hot-wallet', 'privy',
+]);
+function toWalletProvider(id?: string): string {
+  return id && WALLET_PROVIDERS.has(id) ? id : 'freighter';
+}
 
 @Injectable()
 export class AuthService {
@@ -36,6 +54,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(DB_POOL) private readonly pool: Pool,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly privy: PrivyService,
   ) {
     const secret = this.config.get<string>('STELLAR_SERVER_SECRET');
     if (!secret) throw new Error('STELLAR_SERVER_SECRET env var not set');
@@ -89,7 +108,10 @@ export class AuthService {
 
   // ── Flujo A · Paso 2: verificar tx firmada y emitir JWT ─────────────────────
 
-  async verifyAndIssueToken(xdrBase64: string): Promise<{ token: string }> {
+  async verifyAndIssueToken(
+    xdrBase64: string,
+    registration?: RegistrationData,
+  ): Promise<{ token: string }> {
     let tx: Transaction;
     try {
       const envelope = TransactionBuilder.fromXDR(
@@ -166,16 +188,37 @@ export class AuthService {
       });
     }
 
-    // Find or auto-create user
-    const user = await this.findOrCreateUser(clientAccountId);
+    // Punto de convergencia: ambos rieles (SEP-10 y Privy) emiten el JWT acá.
+    return this.bootstrapAndIssueToken(clientAccountId, registration);
+  }
 
+  /**
+   * Cola común de ambos rieles de auth: asegura usuario+org para la wallet y
+   * emite el JWT de sesión de TrustBid. La prueba de identidad (firma SEP-10 o
+   * token de Privy) la resuelve cada riel ANTES de llamar a esto.
+   */
+  async bootstrapAndIssueToken(walletAddress: string, registration?: RegistrationData) {
+    const user = await this.findOrCreateUser(walletAddress, registration);
     const token = await this.jwtService.signAsync({
       sub: user.id,
       org: user.organization_id,
       role: user.role,
     });
-
     return { token };
+  }
+
+  // ── POST /auth/privy (riel no-nativo cripto) ─────────────────────────────────
+
+  async loginWithPrivy(
+    privyToken: string,
+    registration?: RegistrationData,
+  ): Promise<{ token: string }> {
+    const { stellarPublicKey } = await this.privy.verifyAndEnsureStellarWallet(privyToken);
+    // Mismo punto de convergencia que SEP-10; el proveedor se fuerza a 'privy'.
+    return this.bootstrapAndIssueToken(stellarPublicKey, {
+      ...registration,
+      provider: 'privy',
+    });
   }
 
   // ── POST /auth/refresh ───────────────────────────────────────────────────────
@@ -204,11 +247,12 @@ export class AuthService {
       id: string;
       name: string;
       email: string | null;
+      phone: string | null;
       role: string;
       organization_id: string;
       wallet_address: string | null;
     }>(
-      `SELECT u.id, u.name, u.email, u.role, u.organization_id,
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.organization_id,
               uw.public_key AS wallet_address
        FROM users u
        LEFT JOIN user_wallets uw
@@ -226,15 +270,45 @@ export class AuthService {
       id: row.id,
       name: row.name,
       email: row.email,
+      phone: row.phone,
       role: row.role,
       organizationId: row.organization_id,
       walletAddress: row.wallet_address,
     };
   }
 
+  // ── PATCH /auth/me ───────────────────────────────────────────────────────────
+
+  async updateMe(userId: string, dto: { name?: string; phone?: string }) {
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (dto.name !== undefined) {
+      values.push(dto.name);
+      setClauses.push(`name = $${values.length}`);
+    }
+    if (dto.phone !== undefined) {
+      values.push(dto.phone);
+      setClauses.push(`phone = $${values.length}`);
+    }
+
+    if (setClauses.length === 0) return this.getMe(userId);
+
+    values.push(userId);
+    const result = await this.pool.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${values.length} RETURNING id`,
+      values,
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'User not found' });
+    }
+
+    return this.getMe(userId);
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private async findOrCreateUser(walletAddress: string) {
+  private async findOrCreateUser(walletAddress: string, registration?: RegistrationData) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -264,12 +338,18 @@ export class AuthService {
       const network = this.config.get('STELLAR_NETWORK', 'testnet');
       const slug = `org-${randomUUID().slice(0, 8)}`;
 
+      // Datos del registro (con fallbacks). country debe ser ISO [A-Z]{2}.
+      const orgName = registration?.orgName?.trim() || `Org ${walletAddress.slice(0, 8)}`;
+      const country = (registration?.country ?? 'XX').toUpperCase();
+      const role = registration?.role ?? 'admin';
+      const provider = toWalletProvider(registration?.provider);
+
       const orgResult = await client.query<{ id: string }>(
         `INSERT INTO organizations (name, slug, wallet_address, stellar_network, country)
-         VALUES ($1, $2, $3, $4, 'XX')
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug || '-' || substring(gen_random_uuid()::text, 1, 4)
          RETURNING id`,
-        [`Org ${walletAddress.slice(0, 8)}`, slug, walletAddress, network],
+        [orgName, slug, walletAddress, network, country],
       );
       const orgId = orgResult.rows[0].id;
 
@@ -283,16 +363,16 @@ export class AuthService {
         email: string | null;
       }>(
         `INSERT INTO users (organization_id, name, email, password_hash, role, is_active)
-         VALUES ($1, $2, $3, '$wallet-auth', 'admin', true)
+         VALUES ($1, $2, $3, '$wallet-auth', $4, true)
          RETURNING id, organization_id, role, name, email`,
-        [orgId, `Admin ${walletAddress.slice(0, 8)}`, walletEmail],
+        [orgId, `Usuario ${walletAddress.slice(0, 8)}`, walletEmail, role],
       );
       const user = userResult.rows[0];
 
       await client.query(
         `INSERT INTO user_wallets (user_id, organization_id, provider, public_key, is_primary)
-         VALUES ($1, $2, 'freighter', $3, true)`,
-        [user.id, orgId, walletAddress],
+         VALUES ($1, $2, $3, $4, true)`,
+        [user.id, orgId, provider, walletAddress],
       );
 
       await client.query('COMMIT');

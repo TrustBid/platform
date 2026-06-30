@@ -10,7 +10,13 @@ export default async function DonatePage({ params }: { params: Promise<{ id: str
   return (
     <div className="mx-auto max-w-xl px-4 py-12 sm:px-6">
       <DonateFlow
-        project={{ id: project.id, name: project.name, currency: project.currency, category: project.category }}
+        project={{
+          id: project.id,
+          name: project.name,
+          currency: project.currency,
+          category: project.category,
+          recipientAddress: project.recipientAddress ?? null,
+        }}
       />
     </div>
   );
