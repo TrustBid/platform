@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -15,6 +16,7 @@ import { CurrentUser } from '../../common/decorators/org.decorator';
 import { AuthService } from './auth.service';
 import { ChallengeQueryDto } from './dto/challenge-query.dto';
 import { TokenRequestDto } from './dto/token-request.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
@@ -54,5 +56,11 @@ export class AuthController {
   @Get('me')
   getMe(@CurrentUser() user: { sub: string }) {
     return this.authService.getMe(user.sub);
+  }
+
+  // PATCH /auth/me → actualizar nombre / teléfono del usuario
+  @Patch('me')
+  updateMe(@CurrentUser() user: { sub: string }, @Body() body: UpdateMeDto) {
+    return this.authService.updateMe(user.sub, body);
   }
 }

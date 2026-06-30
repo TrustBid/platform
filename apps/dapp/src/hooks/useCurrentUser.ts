@@ -9,6 +9,7 @@ export interface CurrentUser {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   role: string;
   organizationId: string;
   walletAddress: string | null;

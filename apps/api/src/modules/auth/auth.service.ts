@@ -223,11 +223,12 @@ export class AuthService {
       id: string;
       name: string;
       email: string | null;
+      phone: string | null;
       role: string;
       organization_id: string;
       wallet_address: string | null;
     }>(
-      `SELECT u.id, u.name, u.email, u.role, u.organization_id,
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.organization_id,
               uw.public_key AS wallet_address
        FROM users u
        LEFT JOIN user_wallets uw
@@ -245,10 +246,40 @@ export class AuthService {
       id: row.id,
       name: row.name,
       email: row.email,
+      phone: row.phone,
       role: row.role,
       organizationId: row.organization_id,
       walletAddress: row.wallet_address,
     };
+  }
+
+  // ── PATCH /auth/me ───────────────────────────────────────────────────────────
+
+  async updateMe(userId: string, dto: { name?: string; phone?: string }) {
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (dto.name !== undefined) {
+      values.push(dto.name);
+      setClauses.push(`name = $${values.length}`);
+    }
+    if (dto.phone !== undefined) {
+      values.push(dto.phone);
+      setClauses.push(`phone = $${values.length}`);
+    }
+
+    if (setClauses.length === 0) return this.getMe(userId);
+
+    values.push(userId);
+    const result = await this.pool.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${values.length} RETURNING id`,
+      values,
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'User not found' });
+    }
+
+    return this.getMe(userId);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
 import { sep10Login } from '@/lib/auth/sep10';
+import { COUNTRIES } from '@/lib/countries';
 
 const USER_TYPES = [
   {
@@ -31,30 +32,6 @@ const USER_TYPES = [
 ] as const;
 
 type UserTypeId = (typeof USER_TYPES)[number]['id'];
-
-// ISO-3166 alpha-2 — foco LATAM + algunos comunes.
-const COUNTRIES = [
-  { code: 'AR', name: 'Argentina' },
-  { code: 'BO', name: 'Bolivia' },
-  { code: 'BR', name: 'Brasil' },
-  { code: 'CL', name: 'Chile' },
-  { code: 'CO', name: 'Colombia' },
-  { code: 'CR', name: 'Costa Rica' },
-  { code: 'EC', name: 'Ecuador' },
-  { code: 'SV', name: 'El Salvador' },
-  { code: 'GT', name: 'Guatemala' },
-  { code: 'HN', name: 'Honduras' },
-  { code: 'MX', name: 'México' },
-  { code: 'NI', name: 'Nicaragua' },
-  { code: 'PA', name: 'Panamá' },
-  { code: 'PY', name: 'Paraguay' },
-  { code: 'PE', name: 'Perú' },
-  { code: 'DO', name: 'República Dominicana' },
-  { code: 'UY', name: 'Uruguay' },
-  { code: 'VE', name: 'Venezuela' },
-  { code: 'ES', name: 'España' },
-  { code: 'US', name: 'Estados Unidos' },
-] as const;
 
 export default function RegisterPage() {
   const router = useRouter();
