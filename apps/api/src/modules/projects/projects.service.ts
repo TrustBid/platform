@@ -90,6 +90,43 @@ export class ProjectsService {
     return result.rows;
   }
 
+  // Actividad reciente de la organización: últimas transacciones de todos los proyectos.
+  async getRecentActivity(orgId: string, limit = 10) {
+    const result = await this.pool.query<{
+      id: string;
+      project_id: string | null;
+      project_name: string | null;
+      concept: string;
+      amount: string;
+      asset_code: string;
+      tx_status: string;
+      tx_hash: string | null;
+      occurred_at: Date;
+    }>(
+      `SELECT t.id, t.project_id, p.name AS project_name,
+              t.concept, t.amount, t.asset_code, t.tx_status, t.tx_hash,
+              COALESCE(t.confirmed_at, t.created_at) AS occurred_at
+       FROM transactions t
+       LEFT JOIN projects p ON p.id = t.project_id
+       WHERE t.organization_id = $1
+       ORDER BY COALESCE(t.confirmed_at, t.created_at) DESC
+       LIMIT $2`,
+      [orgId, limit],
+    );
+
+    return result.rows.map((r) => ({
+      id: r.id,
+      projectId: r.project_id,
+      projectName: r.project_name,
+      concept: r.concept,
+      amount: Number(r.amount),
+      assetCode: r.asset_code,
+      status: r.tx_status,
+      txHash: r.tx_hash,
+      occurredAt: r.occurred_at.toISOString(),
+    }));
+  }
+
   async create(orgId: string, userId: string, dto: CreateProjectDto) {
     const result = await this.pool.query<{ id: string; created_at: Date }>(
       `INSERT INTO projects

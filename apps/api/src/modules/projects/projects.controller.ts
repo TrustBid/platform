@@ -12,6 +12,12 @@ export class ProjectsController {
     return this.projectsService.listByOrg(orgId);
   }
 
+  // Debe declararse antes de `:id` para que no lo capture el ParseUUIDPipe.
+  @Get('recent-activity')
+  recentActivity(@CurrentOrg() orgId: string) {
+    return this.projectsService.getRecentActivity(orgId);
+  }
+
   @Get(':id')
   getOne(
     @Param('id', ParseUUIDPipe) id: string,
