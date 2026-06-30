@@ -16,7 +16,7 @@ export default function RegisterPage() {
     e.preventDefault();
     // Aquí puedes validar que las contraseñas coincidan antes de avanzar
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      alert('Passwords do not match');
       return;
     }
     // Una vez registrado, lo mandamos al dashboard
@@ -25,7 +25,7 @@ export default function RegisterPage() {
 
   return (
     <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-background">
-      
+
       {/* LADO IZQUIERDO: Imagen institucional con la marca de Stellar (Espejo del Login) */}
       <div className="hidden md:flex relative w-full h-full bg-sidebar select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
@@ -44,7 +44,7 @@ export default function RegisterPage() {
       {/* LADO DERECHO: El formulario de Registro (Fondo Blanco puro) */}
       <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 text-zinc-900">
         <div className="w-full max-w-sm space-y-8">
-          
+
           {/* Encabezado */}
           <div className="space-y-2">
             <h2 className="text-3xl font-bold tracking-tight text-zinc-950">
@@ -57,7 +57,7 @@ export default function RegisterPage() {
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            
+
             {/* Campo: Organización */}
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold text-zinc-700" htmlFor="organization">

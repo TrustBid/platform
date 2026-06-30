@@ -1,0 +1,381 @@
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { Pool } from 'pg';
+import { randomUUID } from 'crypto';
+import { DB_POOL } from '../../database/database.module';
+import type { ProjectsQueryDto } from './dto/projects-query.dto';
+import type { CreateDonationDto } from './dto/create-donation.dto';
+
+@Injectable()
+export class PublicService {
+  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+
+  // ── GET /ngo ─────────────────────────────────────────────────────────────────
+
+  async getNgo() {
+    const [statsRow, fundUsageRows, orgRow] = await Promise.all([
+      this.pool.query<{
+        total_projects: string;
+        raised_usd: string;
+        spent_usd: string;
+        total_beneficiaries: string;
+      }>(
+        `SELECT
+           COUNT(DISTINCT p.id) FILTER (
+             WHERE p.status NOT IN ('archived', 'draft')
+           )                              AS total_projects,
+           COALESCE(SUM(fs.amount), 0)    AS raised_usd,
+           COALESCE(SUM(p.spent_amount), 0) AS spent_usd,
+           COALESCE((
+             SELECT SUM(b.count)
+             FROM beneficiaries b
+             JOIN projects bp ON bp.id = b.project_id
+             WHERE bp.status NOT IN ('archived', 'draft')
+           ), 0)                          AS total_beneficiaries
+         FROM projects p
+         LEFT JOIN funding_sources fs ON fs.project_id = p.id`,
+      ),
+      this.pool.query<{ category: string; amount_usd: string }>(
+        `SELECT category, COALESCE(SUM(spent_amount), 0) AS amount_usd
+         FROM projects
+         WHERE status NOT IN ('archived', 'draft')
+         GROUP BY category
+         ORDER BY amount_usd DESC`,
+      ),
+      this.pool.query<{
+        name: string;
+        settings: Record<string, any> | null;
+      }>(
+        `SELECT name, settings
+         FROM organizations
+         ORDER BY created_at ASC
+         LIMIT 1`,
+      ),
+    ]);
+
+    const org = orgRow.rows[0];
+    const s = statsRow.rows[0];
+
+    return {
+      name: org?.name ?? 'TrustBid',
+      tagline: org?.settings?.tagline ?? 'Transparencia de fondos para ONGs',
+      mission: org?.settings?.mission ?? 'Hacemos trazable cada peso donado.',
+      totals: {
+        projects: Number(s?.total_projects ?? 0),
+        raisedUsd: Number(s?.raised_usd ?? 0),
+        spentUsd: Number(s?.spent_usd ?? 0),
+        beneficiaries: Number(s?.total_beneficiaries ?? 0),
+      },
+      fundUsage: fundUsageRows.rows.map((r) => ({
+        category: r.category,
+        amountUsd: Number(r.amount_usd),
+      })),
+    };
+  }
+
+  // ── GET /projects ─────────────────────────────────────────────────────────────
+
+  async getProjects(query: ProjectsQueryDto) {
+    const { q, category } = query;
+
+    const result = await this.pool.query<{
+      id: string;
+      name: string;
+      category: string;
+      status: string;
+      description: string | null;
+      budget_amount: string;
+      spent_amount: string;
+      current_stage: string | null;
+      beneficiaries_target: string;
+      beneficiaries_reached: string;
+    }>(
+      `SELECT
+         p.id,
+         p.name,
+         p.category,
+         p.status,
+         p.description,
+         p.budget_amount,
+         p.spent_amount,
+         (
+           SELECT ps.name
+           FROM pipeline_stages ps
+           WHERE ps.id = p.current_stage_id
+         ) AS current_stage,
+         COALESCE((
+           SELECT SUM(ii.target_value)
+           FROM impact_indicators ii
+           WHERE ii.project_id = p.id
+         ), 0) AS beneficiaries_target,
+         COALESCE((
+           SELECT SUM(b.count)
+           FROM beneficiaries b
+           WHERE b.project_id = p.id
+         ), 0) AS beneficiaries_reached
+       FROM projects p
+       WHERE p.status != 'archived'
+         AND ($1::text IS NULL OR
+              p.name ILIKE '%' || $1 || '%' OR
+              p.description ILIKE '%' || $1 || '%')
+         AND ($2::text IS NULL OR p.category = $2::text)
+       ORDER BY p.created_at DESC`,
+      [q ?? null, category ?? null],
+    );
+
+    return result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      status: r.status,
+      summary: r.description ?? '',
+      budgetTotalUsd: Number(r.budget_amount),
+      budgetSpentUsd: Number(r.spent_amount),
+      beneficiariesTarget: Number(r.beneficiaries_target),
+      beneficiariesReached: Number(r.beneficiaries_reached),
+      currentStage: r.current_stage ?? '',
+    }));
+  }
+
+  // ── GET /projects/:id ────────────────────────────────────────────────────────
+
+  async getProject(id: string) {
+    const [projectRows, pipelineRows, traceabilityRows, impactRows] =
+      await Promise.all([
+        this.pool.query<{
+          id: string;
+          name: string;
+          category: string;
+          status: string;
+          description: string | null;
+          budget_amount: string;
+          spent_amount: string;
+          budget_asset: string;
+          current_stage: string | null;
+          beneficiaries_target: string;
+          beneficiaries_reached: string;
+        }>(
+          `SELECT
+             p.id,
+             p.name,
+             p.category,
+             p.status,
+             p.description,
+             p.budget_amount,
+             p.spent_amount,
+             p.budget_asset,
+             (
+               SELECT ps.name
+               FROM pipeline_stages ps
+               WHERE ps.id = p.current_stage_id
+             ) AS current_stage,
+             COALESCE((
+               SELECT SUM(ii.target_value)
+               FROM impact_indicators ii
+               WHERE ii.project_id = p.id
+             ), 0) AS beneficiaries_target,
+             COALESCE((
+               SELECT SUM(b.count)
+               FROM beneficiaries b
+               WHERE b.project_id = p.id
+             ), 0) AS beneficiaries_reached
+           FROM projects p
+           WHERE p.id = $1`,
+          [id],
+        ),
+        this.pool.query<{
+          key: string;
+          label: string;
+          date: Date | null;
+          order_index: number;
+          current_stage_id: string | null;
+        }>(
+          `SELECT
+             ps.id              AS key,
+             ps.name            AS label,
+             pt.created_at      AS date,
+             ps.order_index,
+             p.current_stage_id
+           FROM pipeline_stages ps
+           LEFT JOIN pipeline_transitions pt
+             ON pt.to_stage_id = ps.id AND pt.project_id = $1
+           LEFT JOIN projects p ON p.id = $1
+           WHERE ps.project_id = $1
+           ORDER BY ps.order_index ASC`,
+          [id],
+        ),
+        this.pool.query<{
+          id: string;
+          confirmed_at: Date | null;
+          created_at: Date;
+          concept: string | null;
+          amount: string;
+          asset_code: string;
+          tx_hash: string | null;
+          tx_status: string;
+        }>(
+          `SELECT
+             t.id,
+             t.confirmed_at,
+             t.created_at,
+             t.concept,
+             t.amount,
+             t.asset_code,
+             t.tx_hash,
+             t.tx_status
+           FROM transactions t
+           WHERE t.project_id = $1
+             AND t.tx_status IN ('confirmed', 'submitted', 'pending')
+           ORDER BY COALESCE(t.confirmed_at, t.created_at) DESC
+           LIMIT 50`,
+          [id],
+        ),
+        this.pool.query<{
+          name: string;
+          target_value: string;
+          actual_value: string;
+          unit: string;
+        }>(
+          `SELECT name, target_value, actual_value, unit
+           FROM impact_indicators
+           WHERE project_id = $1
+           ORDER BY created_at ASC`,
+          [id],
+        ),
+      ]);
+
+    const project = projectRows.rows[0];
+    if (!project) {
+      throw new NotFoundException({
+        code: 'not_found',
+        message: 'Project not found',
+      });
+    }
+
+    const currentStageId = pipelineRows.rows[0]?.current_stage_id ?? null;
+
+    const pipeline = pipelineRows.rows.map((r) => ({
+      key: r.key,
+      label: r.label,
+      date: r.date ? r.date.toISOString() : null,
+      status: r.date
+        ? 'done'
+        : r.key === currentStageId
+          ? 'current'
+          : 'pending',
+    }));
+
+    const traceability = traceabilityRows.rows.map((r) => ({
+      id: r.id,
+      date: (r.confirmed_at ?? r.created_at).toISOString(),
+      concept: r.concept ?? '',
+      amount: Number(r.amount),
+      currency: r.asset_code,
+      verificationCode: r.tx_hash ?? '',
+      status: r.tx_status === 'confirmed' ? 'verified' : 'pending',
+    }));
+
+    const impact = impactRows.rows.map((r) => ({
+      label: r.name,
+      target: Number(r.target_value),
+      actual: Number(r.actual_value),
+      unit: r.unit,
+    }));
+
+    return {
+      id: project.id,
+      name: project.name,
+      category: project.category,
+      status: project.status,
+      summary: project.description ?? '',
+      description: project.description ?? '',
+      currency: project.budget_asset,
+      budgetTotalUsd: Number(project.budget_amount),
+      budgetSpentUsd: Number(project.spent_amount),
+      beneficiariesTarget: Number(project.beneficiaries_target),
+      beneficiariesReached: Number(project.beneficiaries_reached),
+      currentStage: project.current_stage ?? '',
+      pipeline,
+      traceability,
+      impact,
+    };
+  }
+
+  // ── GET /categories ──────────────────────────────────────────────────────────
+
+  async getCategories(): Promise<string[]> {
+    const result = await this.pool.query<{ category: string }>(
+      `SELECT DISTINCT category
+       FROM projects
+       WHERE status != 'archived'
+       ORDER BY category ASC`,
+    );
+    return result.rows.map((r) => r.category);
+  }
+
+  // ── POST /donations ──────────────────────────────────────────────────────────
+
+  async createDonation(dto: CreateDonationDto) {
+    // Resolve org from project
+    const projectResult = await this.pool.query<{
+      id: string;
+      organization_id: string;
+      status: string;
+    }>(
+      `SELECT id, organization_id, status FROM projects WHERE id = $1`,
+      [dto.projectId],
+    );
+
+    const project = projectResult.rows[0];
+    if (!project) {
+      throw new BadRequestException({
+        code: 'validation_error',
+        message: 'Project not found',
+      });
+    }
+    if (project.status === 'archived' || project.status === 'completed') {
+      throw new BadRequestException({
+        code: 'validation_error',
+        message: 'Project is not accepting donations',
+      });
+    }
+
+    const memoId = randomUUID();
+
+    const result = await this.pool.query<{
+      id: string;
+      project_id: string;
+      amount: string;
+      tx_status: string;
+      tx_hash: string | null;
+      created_at: Date;
+    }>(
+      `INSERT INTO transactions
+         (organization_id, project_id, beneficiary, concept, amount, asset_code,
+          memo_id, tx_status)
+       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, 'pending')
+       RETURNING id, project_id, amount, tx_status, tx_hash, created_at`,
+      [
+        project.organization_id,
+        dto.projectId,
+        dto.walletAddress ?? null,
+        dto.amountUsd,
+        memoId,
+      ],
+    );
+
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      amountUsd: Number(row.amount),
+      status: 'pending',
+      verificationCode: null,
+      createdAt: row.created_at.toISOString(),
+    };
+  }
+}

@@ -4,20 +4,36 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import elipseBg from '@/assets/Elipse.jpg';
+import { connectWalletWithModal } from '@/lib/wallet/adapter';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     router.push('/dashboard');
   };
 
+  const handleConnectWallet = async () => {
+    setWalletError(null);
+    setConnecting(true);
+    try {
+      const address = await connectWalletWithModal();
+      if (address) router.push('/dashboard');
+    } catch {
+      setWalletError('No se pudo conectar la wallet.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   return (
     <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-background">
-      
+
       {/* LADO IZQUIERDO: Imagen institucional con la marca de Stellar (Espejo del Login) */}
       <div className="hidden md:flex relative w-full h-full bg-sidebar select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
@@ -36,7 +52,7 @@ export default function LoginPage() {
       {/* LADO DERECHO: El formulario de Login (Fondo Blanco puro) */}
       <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 text-zinc-900">
         <div className="w-full max-w-sm space-y-8">
-          
+
           {/* Encabezado */}
           <div className="space-y-2">
             <h2 className="text-3xl font-bold tracking-tight text-zinc-950">
@@ -86,9 +102,27 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Separador */}
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-zinc-200" />
+            <span className="text-xs font-medium text-zinc-400">or</span>
+            <span className="h-px flex-1 bg-zinc-200" />
+          </div>
+
+          {/* Login con wallet nativa de Stellar */}
+          <button
+            type="button"
+            onClick={handleConnectWallet}
+            disabled={connecting}
+            className="w-full py-2.5 px-4 bg-white border border-zinc-200 text-zinc-700 font-semibold rounded-lg shadow-sm hover:bg-zinc-50 active:scale-[0.99] transition-all text-sm disabled:opacity-60"
+          >
+            {connecting ? 'Conectando…' : 'Connect Stellar wallet'}
+          </button>
+          {walletError && <p className="text-sm font-medium text-red-600">{walletError}</p>}
+
           {/* Registro */}
           <div className="text-center text-sm font-medium text-zinc-500">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <button
               type="button"
               onClick={() => router.push('/register')}
