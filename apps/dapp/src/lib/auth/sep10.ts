@@ -10,7 +10,7 @@ export async function sep10Login(walletAddress: string): Promise<string> {
   if (!challengeRes.ok) throw new Error('Failed to get challenge');
   const { transaction, network_passphrase } = await challengeRes.json();
 
-  const { signedXDR } = await StellarWalletsKit.signTransaction(transaction, {
+  const { signedTxXdr } = await StellarWalletsKit.signTransaction(transaction, {
     address: walletAddress,
     networkPassphrase: network_passphrase,
   });
@@ -18,7 +18,7 @@ export async function sep10Login(walletAddress: string): Promise<string> {
   const tokenRes = await fetch(`${API}/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transaction: signedXDR }),
+    body: JSON.stringify({ transaction: signedTxXdr }),
   });
   if (!tokenRes.ok) throw new Error('Failed to verify challenge');
   const { token } = await tokenRes.json();
