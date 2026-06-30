@@ -22,6 +22,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { REDIS_CLIENT } from './auth.constants';
+import { PrivyService } from './privy.service';
 
 const NONCE_TTL = 600; // 10 minutes
 const AUTH_DOMAIN = 'trustbid auth';
@@ -35,8 +36,9 @@ interface RegistrationData {
 }
 
 // Valores válidos del enum wallet_provider (init-db + migración sprint5).
+// Mirror del enum wallet_provider de Postgres / canónico en @trustbid/types.
 const WALLET_PROVIDERS = new Set([
-  'freighter', 'albedo', 'custodial', 'xbull', 'rabet', 'lobstr', 'hana', 'hot-wallet',
+  'freighter', 'albedo', 'custodial', 'xbull', 'rabet', 'lobstr', 'hana', 'hot-wallet', 'privy',
 ]);
 function toWalletProvider(id?: string): string {
   return id && WALLET_PROVIDERS.has(id) ? id : 'freighter';
@@ -52,6 +54,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject(DB_POOL) private readonly pool: Pool,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly privy: PrivyService,
   ) {
     const secret = this.config.get<string>('STELLAR_SERVER_SECRET');
     if (!secret) throw new Error('STELLAR_SERVER_SECRET env var not set');
@@ -185,16 +188,37 @@ export class AuthService {
       });
     }
 
-    // Find or auto-create user (usa los datos de registro solo si es la 1ª vez)
-    const user = await this.findOrCreateUser(clientAccountId, registration);
+    // Punto de convergencia: ambos rieles (SEP-10 y Privy) emiten el JWT acá.
+    return this.bootstrapAndIssueToken(clientAccountId, registration);
+  }
 
+  /**
+   * Cola común de ambos rieles de auth: asegura usuario+org para la wallet y
+   * emite el JWT de sesión de TrustBid. La prueba de identidad (firma SEP-10 o
+   * token de Privy) la resuelve cada riel ANTES de llamar a esto.
+   */
+  async bootstrapAndIssueToken(walletAddress: string, registration?: RegistrationData) {
+    const user = await this.findOrCreateUser(walletAddress, registration);
     const token = await this.jwtService.signAsync({
       sub: user.id,
       org: user.organization_id,
       role: user.role,
     });
-
     return { token };
+  }
+
+  // ── POST /auth/privy (riel no-nativo cripto) ─────────────────────────────────
+
+  async loginWithPrivy(
+    privyToken: string,
+    registration?: RegistrationData,
+  ): Promise<{ token: string }> {
+    const { stellarPublicKey } = await this.privy.verifyAndGetStellarWallet(privyToken);
+    // Mismo punto de convergencia que SEP-10; el proveedor se fuerza a 'privy'.
+    return this.bootstrapAndIssueToken(stellarPublicKey, {
+      ...registration,
+      provider: 'privy',
+    });
   }
 
   // ── POST /auth/refresh ───────────────────────────────────────────────────────

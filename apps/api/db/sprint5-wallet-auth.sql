@@ -15,3 +15,7 @@ ALTER TYPE wallet_provider ADD VALUE IF NOT EXISTS 'rabet';
 ALTER TYPE wallet_provider ADD VALUE IF NOT EXISTS 'lobstr';
 ALTER TYPE wallet_provider ADD VALUE IF NOT EXISTS 'hana';
 ALTER TYPE wallet_provider ADD VALUE IF NOT EXISTS 'hot-wallet';
+
+-- Privy: wallet embebida gestionada (login email/OTP, no-nativos cripto).
+-- Valor propio (no 'custodial') para distinguir el proveedor específico.
+ALTER TYPE wallet_provider ADD VALUE IF NOT EXISTS 'privy';

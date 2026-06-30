@@ -5,6 +5,7 @@ import { Reflector } from '@nestjs/core';
 import Redis from 'ioredis';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PrivyService } from './privy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { REDIS_CLIENT } from './auth.constants';
@@ -24,6 +25,7 @@ import { REDIS_CLIENT } from './auth.constants';
   controllers: [AuthController],
   providers: [
     AuthService,
+    PrivyService,
     JwtAuthGuard,
     RolesGuard,
     Reflector,
