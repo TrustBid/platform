@@ -3,18 +3,27 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
 import { sep10Login } from '@/lib/auth/sep10';
 
+type Step = 'idle' | 'signing' | 'verifying';
+
+const STEP_LABEL: Record<Step, string> = {
+  idle:      'Conectar wallet Stellar',
+  signing:   'Firmando challenge…',
+  verifying: 'Verificando identidad…',
+};
+
 export default function LoginPage() {
   const router = useRouter();
-  const [walletError, setWalletError] = useState<string | null>(null);
+  const [step, setStep]           = useState<Step>('idle');
   const [connecting, setConnecting] = useState(false);
-  const [step, setStep] = useState<'idle' | 'signing' | 'verifying'>('idle');
+  const [error, setError]         = useState<string | null>(null);
 
-  const handleConnectWallet = async () => {
-    setWalletError(null);
+  const handleConnect = async () => {
+    setError(null);
     setConnecting(true);
     try {
       setStep('signing');
@@ -27,13 +36,13 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'NETWORK_MISMATCH') {
-        setWalletError('Tu wallet está en Mainnet. Cambia a Testnet en Freighter → Settings → Network.');
+        setError('Tu wallet está en Mainnet. Cambia a Testnet en Freighter → Settings → Network.');
       } else if (msg === 'USER_REJECTED') {
-        setWalletError('Firma cancelada. Aprueba el challenge en tu wallet para continuar.');
+        setError('Firma cancelada. Aprueba el challenge en tu wallet para continuar.');
       } else if (msg.includes('fetch') || msg.includes('Failed')) {
-        setWalletError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
+        setError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
       } else {
-        setWalletError('No se pudo conectar la wallet. Asegúrate de que esté instalada y desbloqueada.');
+        setError('No se pudo conectar la wallet. Asegúrate de que esté instalada y desbloqueada.');
       }
       setStep('idle');
     } finally {
@@ -41,67 +50,98 @@ export default function LoginPage() {
     }
   };
 
-  const stepLabel = step === 'signing' ? 'Firmando challenge…' : step === 'verifying' ? 'Verificando…' : 'Connect Stellar wallet';
-
   return (
-    <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-background">
-      <div className="hidden md:flex relative w-full h-full bg-sidebar select-none items-center justify-center p-12">
+    <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-white">
+      {/* Left panel */}
+      <div className="hidden md:flex relative w-full h-full bg-[#020817] select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
           <Image
             src={elipseBg}
-            alt="TrustBid Infrastructure"
+            alt="TrustBid"
             priority
-            className="w-full h-auto object-contain max-h-[75vh]"
+            className="w-full h-auto object-contain max-h-[70vh]"
           />
-          <p className="absolute bottom-16 left-0 right-0 text-center text-sm font-medium tracking-wide text-zinc-400/90 max-w-md mx-auto leading-relaxed px-4">
-            Every transaction leaves a trace. Transparent fund management powered by Stellar blockchain.
-          </p>
+          <div className="absolute bottom-12 left-0 right-0 text-center px-4">
+            <p className="text-sm font-semibold text-white/90 tracking-wide">TrustBid</p>
+            <p className="text-xs text-white/50 mt-1 leading-relaxed max-w-xs mx-auto">
+              Transparencia de fondos verificable en Stellar blockchain.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 text-zinc-900">
+      {/* Right panel */}
+      <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 overflow-y-auto">
         <div className="w-full max-w-sm space-y-8">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight text-zinc-950">Welcome back</h2>
-            <p className="text-sm font-medium text-zinc-500">Sign in with your Stellar wallet</p>
+
+          <div className="space-y-1.5">
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">Bienvenido de nuevo</h2>
+            <p className="text-sm text-gray-500">Ingresa con tu wallet Stellar.</p>
           </div>
 
           <div className="space-y-4">
+            {/* Wallet info card */}
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#0F52BA]/10 flex items-center justify-center flex-shrink-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F52BA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+                    <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+                    <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Autenticación con wallet</p>
+                  <p className="text-xs text-gray-400">Protocolo SEP-10 · sin contraseñas</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Se generará un challenge que firmarás con tu wallet. Tus claves privadas nunca salen de tu dispositivo.
+              </p>
+            </div>
+
             <button
               type="button"
-              onClick={handleConnectWallet}
+              onClick={handleConnect}
               disabled={connecting}
-              className="w-full py-3 px-4 bg-[#0F52BA] hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm active:scale-[0.99] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+              className={cn(
+                'w-full py-3.5 px-4 font-semibold rounded-xl text-sm transition-all',
+                'flex items-center justify-center gap-2',
+                'active:scale-[0.99] disabled:opacity-60',
+                'bg-[#0F52BA] hover:bg-blue-700 text-white shadow-sm',
+              )}
             >
               {connecting && (
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               )}
-              {stepLabel}
+              {STEP_LABEL[step]}
             </button>
 
-            {walletError && (
-              <p className="text-sm font-medium text-red-600 text-center">{walletError}</p>
+            {error && (
+              <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                {error}
+              </p>
             )}
 
-            <p className="text-xs text-zinc-400 text-center leading-relaxed">
-              Freighter · Albedo · y más wallets Stellar compatibles.<br />
-              El challenge SEP-10 se firma localmente — tus claves nunca salen de tu wallet.
+            <p className="text-xs text-gray-400 text-center leading-relaxed">
+              Compatible con Freighter, Albedo y otras wallets Stellar.
             </p>
           </div>
 
-          <div className="text-center text-sm font-medium text-zinc-500">
+          <p className="text-center text-sm text-gray-400">
             ¿Primera vez?{' '}
             <button
               type="button"
               onClick={() => router.push('/register')}
-              className="text-blue-600 hover:underline font-semibold"
+              className="text-[#0F52BA] hover:underline font-semibold"
             >
               Crear organización
             </button>
-          </div>
+          </p>
+
         </div>
       </div>
     </main>
