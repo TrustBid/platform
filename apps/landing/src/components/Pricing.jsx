@@ -1,7 +1,8 @@
 import gradient from '../assets/gradient.webp';
 import { openAccessModal } from '../lib/accessModal';
-import { openOnboarding } from '../lib/onboardingFlow';
 import { useI18n } from '../i18n/LanguageContext';
+
+const DAPP_REGISTER = (import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app') + '/register';
 
 const FREE_PLAN = {
   en: {
@@ -34,7 +35,7 @@ export default function Pricing() {
 
   const handlePlanClick = (plan) => {
     if (plan.isFree) {
-      openOnboarding({ source: 'pricing', plan: 'free' });
+      window.location.href = DAPP_REGISTER;
     } else {
       openAccessModal({ plan: plan.name });
     }

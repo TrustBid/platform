@@ -3,9 +3,19 @@ import logoFooter from '../assets/logoFooter.webp';
 import { openAccessModal } from '../lib/accessModal';
 import { useI18n } from '../i18n/LanguageContext';
 
+const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app';
+const DAPP_PUBLIC = `${DAPP_BASE}/public`;
+
 export default function Footer() {
-  const { t } = useI18n();
-  const navigationLinks = t.footer.navigationLinks;
+  const { t, lang } = useI18n();
+  const navigationLinks = [
+    ...t.footer.navigationLinks,
+    {
+      label: lang === 'es' ? 'Proyectos públicos' : 'Public projects',
+      href: DAPP_PUBLIC,
+      external: true,
+    },
+  ];
   const resourceLinks = t.footer.resourceLinks;
 
   const socialLinks = [
@@ -39,6 +49,8 @@ export default function Footer() {
                   <li key={link.label}>
                     <a
                       href={link.href}
+                      target={link.external ? '_blank' : undefined}
+                      rel={link.external ? 'noopener noreferrer' : undefined}
                       onClick={link.href === '#access' ? (e) => { e.preventDefault(); openAccessModal({ source: 'footer' }); } : undefined}
                       className="hover:text-white transition"
                     >

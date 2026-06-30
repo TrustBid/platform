@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PublicModule } from './modules/public/public.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -16,6 +17,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     AuthModule,
     PublicModule,
     ProjectsModule,
+    OrganizationsModule,
   ],
   controllers: [AppController],
   providers: [

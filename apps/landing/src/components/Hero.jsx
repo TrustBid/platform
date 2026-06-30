@@ -4,13 +4,12 @@ import LogoNav from '../assets/LogoNav.webp';
 import gradient from '../assets/gradient.webp';
 import logoGradient from '../assets/logoGradient.webp';
 import LanguageSwitcher from './LanguageSwitcher';
-import { openAccessModal } from '../lib/accessModal';
-import { openOnboarding } from '../lib/onboardingFlow';
 import { useI18n } from '../i18n/LanguageContext';
 
-const DAPP_LOGIN = import.meta.env.VITE_DAPP_URL
-  ? `${import.meta.env.VITE_DAPP_URL}/login`
-  : 'https://dapp-production-52e7.up.railway.app/login';
+const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app';
+const DAPP_LOGIN    = `${DAPP_BASE}/login`;
+const DAPP_REGISTER = `${DAPP_BASE}/register`;
+const DAPP_PUBLIC   = `${DAPP_BASE}/public`;
 
 export default function Hero() {
   const { t } = useI18n();
@@ -59,12 +58,12 @@ export default function Hero() {
             >
               {t.nav.signIn}
             </a>
-            <button
-              onClick={() => openOnboarding({ source: 'nav' })}
+            <a
+              href={DAPP_REGISTER}
               className="bg-[#0B28FE] hover:bg-blue-700 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition shadow-lg shadow-blue-500/25"
             >
               {t.nav.getStarted}
-            </button>
+            </a>
 
             {/* Hamburger - mobile only */}
             <button
@@ -110,13 +109,21 @@ export default function Hero() {
               >
                 {t.nav.signIn}
               </a>
-              <button
-                onClick={() => { setMenuOpen(false); openOnboarding({ source: 'nav' }); }}
-                className="w-full py-2.5 rounded-full text-sm font-semibold text-white transition"
+              <a
+                href={DAPP_REGISTER}
+                onClick={() => setMenuOpen(false)}
+                className="w-full text-center py-2.5 rounded-full text-sm font-semibold text-white transition"
                 style={{ backgroundColor: '#0B28FE' }}
               >
                 {t.nav.getStarted}
-              </button>
+              </a>
+              <a
+                href={DAPP_PUBLIC}
+                onClick={() => setMenuOpen(false)}
+                className="w-full text-center py-2.5 rounded-full text-sm font-medium text-gray-500 hover:text-gray-700 transition"
+              >
+                {t.nav.viewProjects}
+              </a>
             </div>
             <LanguageSwitcher inline />
           </div>
