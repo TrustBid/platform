@@ -11,6 +11,8 @@ export class SorobanService {
   private readonly fundTrackerId: string;
   private readonly expenseAnchorId: string;
 
+  private readonly sbtBadgeId: string;
+
   constructor(private readonly config: ConfigService) {
     this.rpcUrl =
       config.get<string>('STELLAR_RPC_URL') ??
@@ -23,9 +25,8 @@ export class SorobanService {
       config.getOrThrow<string>('STELLAR_SERVER_SECRET'),
     );
     this.fundTrackerId = config.getOrThrow<string>('FUND_TRACKER_CONTRACT_ID');
-    this.expenseAnchorId = config.getOrThrow<string>(
-      'EXPENSE_ANCHOR_CONTRACT_ID',
-    );
+    this.expenseAnchorId = config.getOrThrow<string>('EXPENSE_ANCHOR_CONTRACT_ID');
+    this.sbtBadgeId = config.getOrThrow<string>('SBT_BADGE_CONTRACT_ID');
   }
 
   private signer() {
@@ -105,6 +106,145 @@ export class SorobanService {
       return hash || null;
     } catch (err: unknown) {
       this.logger.error('anchorExpense failed', err);
+      return null;
+    }
+  }
+
+  // ── SBT Badge ────────────────────────────────────────────────────────────
+
+  async mintBadge(opts: {
+    organization: string;
+    badgeType: 'kyb_verified' | 'transparency_bronze' | 'transparency_silver' | 'transparency_gold';
+  }): Promise<{ tokenId: number; txHash: string } | null> {
+    try {
+      const client = await contract.Client.from({
+        contractId: this.sbtBadgeId,
+        ...this.baseOpts(),
+      });
+
+      const tx = await (client as any).mint_badge({
+        organization: opts.organization,
+        badge_type: opts.badgeType,
+      });
+
+      const sent = await tx.signAndSend();
+      const hash: string = sent.sendTransactionResponse?.hash ?? '';
+      const tokenId = Number(sent.result ?? sent.getTransactionResponse?.result ?? 0);
+      this.logger.log(`sbt-badge.mint_badge token=${tokenId} tx=${hash} org=${opts.organization}`);
+      return hash ? { tokenId, txHash: hash } : null;
+    } catch (err: unknown) {
+      this.logger.error('mintBadge failed', err);
+      return null;
+    }
+  }
+
+  async revokeBadge(tokenId: number): Promise<string | null> {
+    try {
+      const client = await contract.Client.from({
+        contractId: this.sbtBadgeId,
+        ...this.baseOpts(),
+      });
+
+      const tx = await (client as any).revoke_badge({ token_id: BigInt(tokenId) });
+      const sent = await tx.signAndSend();
+      const hash: string = sent.sendTransactionResponse?.hash ?? '';
+      this.logger.log(`sbt-badge.revoke_badge token=${tokenId} tx=${hash}`);
+      return hash || null;
+    } catch (err: unknown) {
+      this.logger.error('revokeBadge failed', err);
+      return null;
+    }
+  }
+
+  async readBadges(organization: string): Promise<Array<{
+    tokenId: number;
+    badgeType: string;
+    status: 'Active' | 'Revoked';
+    issuedAt: number;
+    revokedAt: number;
+  }>> {
+    try {
+      const client = await contract.Client.from({
+        contractId: this.sbtBadgeId,
+        ...this.baseOpts(),
+      });
+
+      const result = await (client as any).get_badges({ organization });
+      const list = result?.result ?? [];
+
+      return (list as any[]).map((b: any) => ({
+        tokenId: Number(b.token_id ?? 0),
+        badgeType: b.badge_type?.toString() ?? '',
+        status: b.status === 'Active' || b.status?.Active !== undefined ? 'Active' : 'Revoked',
+        issuedAt: Number(b.issued_at ?? 0),
+        revokedAt: Number(b.revoked_at ?? 0),
+      }));
+    } catch (err: unknown) {
+      this.logger.error('readBadges failed', err);
+      return [];
+    }
+  }
+
+  // ── Métodos de lectura on-chain ───────────────────────────────────────────
+
+  async readAllocation(projectId: string): Promise<{
+    projectId: string;
+    organization: string;
+    amountXlm: number;
+    allocatedAt: number;
+  } | null> {
+    try {
+      const client = await contract.Client.from({
+        contractId: this.fundTrackerId,
+        ...this.baseOpts(),
+      });
+
+      const symId = projectId.replace(/-/g, '').slice(-12);
+      const result = await (client as any).get_allocation({ project_id: symId });
+      const val = result?.result?.unwrap?.() ?? result?.result ?? null;
+      if (!val) return null;
+
+      return {
+        projectId,
+        organization: val.organization?.toString() ?? '',
+        amountXlm: Number(val.amount_xlm ?? 0) / 1e7,
+        allocatedAt: Number(val.allocated_at ?? 0),
+      };
+    } catch (err: unknown) {
+      this.logger.error('readAllocation failed', err);
+      return null;
+    }
+  }
+
+  async readExpense(expenseId: string): Promise<{
+    expenseId: string;
+    projectId: string;
+    submittedBy: string;
+    amountXlm: number;
+    receiptHash: string;
+    anchoredAt: number;
+  } | null> {
+    try {
+      const client = await contract.Client.from({
+        contractId: this.expenseAnchorId,
+        ...this.baseOpts(),
+      });
+
+      const expSym = expenseId.replace(/-/g, '').slice(-12);
+      const result = await (client as any).get_expense({ expense_id: expSym });
+      const val = result?.result?.unwrap?.() ?? result?.result ?? null;
+      if (!val) return null;
+
+      return {
+        expenseId,
+        projectId: val.project_id?.toString() ?? '',
+        submittedBy: val.submitted_by?.toString() ?? '',
+        amountXlm: Number(val.amount_xlm ?? 0) / 1e7,
+        receiptHash: Buffer.from(val.receipt_hash ?? []).toString('hex'),
+        anchoredAt: Number(val.anchored_at ?? 0),
+      };
+    } catch (err: unknown) {
+      this.logger.error('readExpense failed', err);
       return null;
     }
   }
