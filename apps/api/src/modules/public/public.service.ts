@@ -4,15 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Pool } from 'pg';
-import { randomUUID } from 'crypto';
 import { DB_POOL } from '../../database/database.module';
 import type { ProjectsQueryDto } from './dto/projects-query.dto';
 import type { CreateDonationDto } from './dto/create-donation.dto';
 
 @Injectable()
 export class PublicService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DB_POOL) private readonly pool: Pool,
+    private readonly config: ConfigService,
+  ) {}
 
   // ── GET /ngo ─────────────────────────────────────────────────────────────────
 
@@ -320,13 +323,17 @@ export class PublicService {
   // ── POST /donations ──────────────────────────────────────────────────────────
 
   async createDonation(dto: CreateDonationDto) {
-    // Resolve org from project
+    // Resolve org + wallet from project
     const projectResult = await this.pool.query<{
       id: string;
       organization_id: string;
       status: string;
+      org_wallet: string | null;
     }>(
-      `SELECT id, organization_id, status FROM projects WHERE id = $1`,
+      `SELECT p.id, p.organization_id, p.status, o.wallet_address AS org_wallet
+       FROM projects p
+       JOIN organizations o ON o.id = p.organization_id
+       WHERE p.id = $1`,
       [dto.projectId],
     );
 
@@ -344,7 +351,17 @@ export class PublicService {
       });
     }
 
-    const memoId = randomUUID();
+    // PAY-YYYY-NNNN — counter per org + year (I-07)
+    const year = new Date().getFullYear();
+    const countResult = await this.pool.query<{ n: string }>(
+      `SELECT COUNT(*) AS n
+       FROM transactions
+       WHERE organization_id = $1
+         AND EXTRACT(YEAR FROM created_at) = $2`,
+      [project.organization_id, year],
+    );
+    const n = Number(countResult.rows[0]?.n ?? 0) + 1;
+    const memoId = `PAY-${year}-${String(n).padStart(4, '0')}`;
 
     const result = await this.pool.query<{
       id: string;
@@ -369,12 +386,30 @@ export class PublicService {
     );
 
     const row = result.rows[0];
+
+    // SEP-7 payment link (I-10)
+    const isMainnet = this.config.get<string>('STELLAR_NETWORK') === 'public';
+    const usdcIssuer = isMainnet
+      ? 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+      : 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+    const destination = project.org_wallet ?? '';
+    const sep7Link = destination
+      ? `web+stellar:pay?destination=${destination}` +
+        `&amount=${dto.amountUsd}` +
+        `&asset_code=USDC` +
+        `&asset_issuer=${usdcIssuer}` +
+        `&memo=${memoId}` +
+        `&memo_type=text` +
+        `&msg=Donaci%C3%B3n+TrustBid`
+      : null;
+
     return {
       id: row.id,
       projectId: row.project_id,
       amountUsd: Number(row.amount),
+      memoId,
+      sep7Link,
       status: 'pending',
-      verificationCode: null,
       createdAt: row.created_at.toISOString(),
     };
   }

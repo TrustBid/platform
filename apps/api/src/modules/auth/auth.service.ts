@@ -25,7 +25,6 @@ import { REDIS_CLIENT } from './auth.constants';
 import { PrivyService } from './privy.service';
 
 const NONCE_TTL = 600; // 10 minutes
-const AUTH_DOMAIN = 'trustbid auth';
 
 // Datos opcionales del formulario de registro, usados solo en el bootstrap inicial.
 interface RegistrationData {
@@ -48,6 +47,7 @@ function toWalletProvider(id?: string): string {
 export class AuthService {
   private readonly networkPassphrase: string;
   private readonly serverKeypair: Keypair;
+  private readonly authDomain: string;
 
   constructor(
     private readonly config: ConfigService,
@@ -63,6 +63,8 @@ export class AuthService {
       this.config.get('STELLAR_NETWORK') === 'public'
         ? Networks.PUBLIC
         : Networks.TESTNET;
+    const homeDomain = this.config.get<string>('HOME_DOMAIN', 'trustbid.app');
+    this.authDomain = `${homeDomain} auth`;
   }
 
   // ── Flujo A · Paso 1: generar challenge SEP-10 ──────────────────────────────
@@ -91,7 +93,7 @@ export class AuthService {
       .addOperation(
         Operation.manageData({
           source: account,      // client's G... address as operation source
-          name: AUTH_DOMAIN,
+          name: this.authDomain,
           value: Buffer.from(nonce, 'utf8'),
         }),
       )
@@ -145,7 +147,7 @@ export class AuthService {
 
     // Extract client account from ManageData op
     const firstOp = tx.operations[0];
-    if (firstOp?.type !== 'manageData' || firstOp.name !== AUTH_DOMAIN) {
+    if (firstOp?.type !== 'manageData' || firstOp.name !== this.authDomain) {
       throw new BadRequestException({
         code: 'invalid_transaction',
         message: 'Invalid challenge format',
@@ -171,8 +173,23 @@ export class AuthService {
     }
     await this.redis.del(`auth:nonce:${clientAccountId}`);
 
-    // Verify client signature
+    // Verify server signature (SEP-10: server must have signed the challenge)
     const txHash = tx.hash();
+    const serverSigValid = tx.signatures.some((sig) => {
+      try {
+        return this.serverKeypair.verify(txHash, sig.signature());
+      } catch {
+        return false;
+      }
+    });
+    if (!serverSigValid) {
+      throw new BadRequestException({
+        code: 'invalid_transaction',
+        message: 'Server signature missing or invalid',
+      });
+    }
+
+    // Verify client signature
     const clientKeypair = Keypair.fromPublicKey(clientAccountId);
     const clientSigValid = tx.signatures.some((sig) => {
       try {

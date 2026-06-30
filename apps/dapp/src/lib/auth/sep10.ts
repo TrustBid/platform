@@ -10,13 +10,15 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
 // Espejamos el token en una cookie homónima para poder proteger /dashboard.
 function writeJwtCookie(token: string): void {
   if (typeof document !== 'undefined') {
-    document.cookie = `${JWT_KEY}=${token}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${JWT_KEY}=${token}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
   }
 }
 
 function deleteJwtCookie(): void {
   if (typeof document !== 'undefined') {
-    document.cookie = `${JWT_KEY}=; path=/; max-age=0; SameSite=Lax`;
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${JWT_KEY}=; path=/; max-age=0; SameSite=Lax${secure}`;
   }
 }
 
