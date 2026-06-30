@@ -265,14 +265,16 @@ export class AuthService {
       const slug = `org-${randomUUID().slice(0, 8)}`;
 
       const orgResult = await client.query<{ id: string }>(
-        `INSERT INTO organizations (name, slug, wallet_address, stellar_network)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO organizations (name, slug, wallet_address, stellar_network, country)
+         VALUES ($1, $2, $3, $4, 'XX')
          ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug || '-' || substring(gen_random_uuid()::text, 1, 4)
          RETURNING id`,
         [`Org ${walletAddress.slice(0, 8)}`, slug, walletAddress, network],
       );
       const orgId = orgResult.rows[0].id;
 
+      // email/password_hash use wallet-auth placeholders — proper nullable migration pending
+      const walletEmail = `${walletAddress.toLowerCase()}@wallet.stellar`;
       const userResult = await client.query<{
         id: string;
         organization_id: string;
@@ -280,10 +282,10 @@ export class AuthService {
         name: string;
         email: string | null;
       }>(
-        `INSERT INTO users (organization_id, name, role, is_active)
-         VALUES ($1, $2, 'admin', true)
+        `INSERT INTO users (organization_id, name, email, password_hash, role, is_active)
+         VALUES ($1, $2, $3, '$wallet-auth', 'admin', true)
          RETURNING id, organization_id, role, name, email`,
-        [orgId, `Admin ${walletAddress.slice(0, 8)}`],
+        [orgId, `Admin ${walletAddress.slice(0, 8)}`, walletEmail],
       );
       const user = userResult.rows[0];
 
