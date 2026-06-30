@@ -17,7 +17,7 @@ import {
   Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { demoUser } from '@/lib/demo-user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // --- Datos locales (mismo formato que devolverá el backend) ---
 const USERS = [
@@ -59,6 +59,7 @@ type TabId = (typeof TABS)[number]['id'];
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('general');
+  const { user } = useCurrentUser();
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8 bg-white dark:bg-[#050505] min-h-screen text-zinc-900 dark:text-zinc-100">
@@ -91,7 +92,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {tab === 'general' && <GeneralTab />}
+      {tab === 'general' && <GeneralTab user={user} />}
       {tab === 'users' && <UsersTab />}
       {tab === 'areas' && <AreasTab />}
       {tab === 'pipeline' && <PipelineTab />}
@@ -101,10 +102,20 @@ export default function SettingsPage() {
 }
 
 /* ---------- GENERAL ---------- */
-function GeneralTab() {
+function GeneralTab({ user }: { user: import('@/hooks/useCurrentUser').CurrentUser | null }) {
+  const initials = user?.name
+    ?.split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) ?? '?';
+
+  const displayEmail = user?.walletAddress ?? user?.email ?? '';
+  const isWalletUser = !!user?.walletAddress;
+
   return (
     <div className="space-y-8">
-      {/* Perfil del Administrador */}
+      {/* Perfil */}
       <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
         <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-6 border-b border-zinc-200 dark:border-zinc-900">
           <div className="p-2 bg-zinc-100 text-blue-600 dark:bg-zinc-900 dark:text-blue-500 rounded-lg">
@@ -118,39 +129,47 @@ function GeneralTab() {
         <CardContent className="pt-6 space-y-6">
           <div className="flex items-center gap-4 bg-zinc-100/60 border border-zinc-200 dark:bg-zinc-900/40 dark:border-zinc-800/40 p-4 rounded-xl">
             <Avatar className="h-14 w-14 border border-zinc-300 dark:border-zinc-700/50">
-              <AvatarFallback className="bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-sm font-bold">DC</AvatarFallback>
+              <AvatarFallback className="bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 text-sm font-bold">
+                {initials}
+              </AvatarFallback>
             </Avatar>
             <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-200">{demoUser.name}</p>
-              <p className="text-xs text-zinc-600 dark:text-zinc-500">Administrador de la dApp</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-200">{user?.name ?? '—'}</p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-500 capitalize">{user?.role ?? 'admin'}</p>
             </div>
-            <Button variant="outline" className="ml-auto h-9 px-4 border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
-              Cambiar foto
-            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Nombre completo</label>
-              <Input defaultValue={demoUser.name} className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700 focus:ring-0" />
+              <Input
+                defaultValue={user?.name ?? ''}
+                className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700 focus:ring-0"
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Correo electrónico</label>
-              <Input defaultValue={demoUser.email} disabled className="bg-zinc-100 border-zinc-200 text-zinc-500 dark:bg-zinc-900/50 dark:border-zinc-800/80 dark:text-zinc-500 cursor-not-allowed" />
+              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                {isWalletUser ? 'Wallet Stellar' : 'Correo electrónico'}
+              </label>
+              <Input
+                defaultValue={displayEmail}
+                disabled
+                className="bg-zinc-100 border-zinc-200 text-zinc-500 dark:bg-zinc-900/50 dark:border-zinc-800/80 dark:text-zinc-500 cursor-not-allowed font-mono text-xs"
+              />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Teléfono</label>
-              <Input placeholder="+54 11 ..." className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700" />
+              <Input placeholder="+57 300 ..." className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700" />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Organización / Entidad</label>
-              <Input placeholder="TrustBid Org" className="bg-white border-zinc-300 text-zinc-900 focus:border-zinc-400 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-700" />
+              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Rol</label>
+              <Input defaultValue={user?.role ?? ''} disabled className="bg-zinc-100 border-zinc-200 text-zinc-500 dark:bg-zinc-900/50 dark:border-zinc-800/80 dark:text-zinc-500 cursor-not-allowed capitalize" />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Seguridad de la Cuenta */}
+      {/* Acceso */}
       <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
         <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-6 border-b border-zinc-200 dark:border-zinc-900">
           <div className="p-2 bg-zinc-100 text-amber-600 dark:bg-zinc-900 dark:text-amber-500 rounded-lg">
@@ -158,19 +177,30 @@ function GeneralTab() {
           </div>
           <div>
             <CardTitle className="text-lg font-semibold text-zinc-900 dark:text-white">Seguridad de Acceso</CardTitle>
-            <CardDescription className="text-zinc-600 dark:text-zinc-400">Actualiza tus contraseñas de sesión.</CardDescription>
+            <CardDescription className="text-zinc-600 dark:text-zinc-400">
+              {isWalletUser
+                ? 'Tu cuenta está protegida por firma criptográfica SEP-10.'
+                : 'Gestiona tu contraseña de acceso.'}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <Button variant="outline" className="h-9 px-4 border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
-            Cambiar Contraseña
-          </Button>
+          {isWalletUser ? (
+            <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="h-4 w-4" />
+              Autenticación por wallet Stellar activa — no se requiere contraseña.
+            </div>
+          ) : (
+            <Button variant="outline" className="h-9 px-4 border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+              Cambiar Contraseña
+            </Button>
+          )}
         </CardContent>
       </Card>
 
       <div className="flex justify-end pt-2">
         <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4 rounded-lg transition-colors">
-          Guardar todos los cambios
+          Guardar cambios
         </Button>
       </div>
     </div>

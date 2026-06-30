@@ -26,7 +26,6 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { demoUser } from '@/lib/demo-user'
 
 const navItems = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -57,7 +56,7 @@ export function AppSidebar({
       .toUpperCase()
       .slice(0, 2) ||
     userEmail?.slice(0, 2).toUpperCase() ||
-    demoUser.initials
+    '?'
 
   const handleSignOut = async () => {
     try {
@@ -155,10 +154,10 @@ export function AppSidebar({
           </Avatar>
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-200">
-              {userName || demoUser.name}
+              {userName ?? 'Mi cuenta'}
             </span>
             <span className="truncate text-[11px] text-zinc-600 dark:text-zinc-500 font-medium">
-              {userEmail || demoUser.email}
+              {userEmail ?? ''}
             </span>
           </div>
 
