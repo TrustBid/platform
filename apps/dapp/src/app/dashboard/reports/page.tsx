@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ModeToggle } from '@/components/ui/mode-toggle';
-import { FileText, Plus, ArrowRight, ArrowLeft, CheckCircle, Upload, Eye } from 'lucide-react';
+import { FileText, Plus, ArrowRight, ArrowLeft, CheckCircle, Upload, Eye, BarChart2 } from 'lucide-react';
 
 export default function ReportsPage() {
   const [reports, setReports] = useState([]);
@@ -96,7 +96,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between w-full max-w-3xl mx-auto px-4 py-2">
             {[
               { step: 1, label: 'Informacion', icon: FileText },
-              { step: 2, label: 'Datos', icon: () => <span className="text-xs font-bold">📊</span> },
+              { step: 2, label: 'Datos', icon: BarChart2 },
               { step: 3, label: 'Documentos', icon: Upload },
               { step: 4, label: 'Revision', icon: CheckCircle },
             ].map((item, index, arr) => {
@@ -114,7 +114,7 @@ export default function ReportsPage() {
                         ? 'bg-blue-50 border-blue-300 text-blue-600' 
                         : 'bg-white border-zinc-200 text-zinc-400'
                     }`}>
-                      {typeof item.icon === 'function' && item.step === 2 ? <IconComponent /> : <IconComponent className="h-4 w-4" />}
+                      <IconComponent className="h-4 w-4" />
                     </div>
                     <span className={`text-xs font-semibold tracking-tight transition-colors ${
                       isActive ? 'text-zinc-900 font-bold' : isCompleted ? 'text-blue-600' : 'text-zinc-400'
