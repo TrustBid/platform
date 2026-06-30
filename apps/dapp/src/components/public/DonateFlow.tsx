@@ -24,6 +24,8 @@ import { explorerTxUrl, shortCode } from '@/lib/stellar-explorer';
 import { submitDonation } from '@/lib/api/public';
 import { useLanguage } from '@/lib/i18n/LanguageProvider';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
+import { WalletKitSigner } from '@/lib/stellar/walletKitSigner';
+import { StellarClient, XLM } from '@trustbid/stellar-sdk';
 import type { DonationIntent } from '@/types/public';
 
 const PRESETS = [50, 100, 500];
@@ -32,7 +34,14 @@ const PRESETS = [50, 100, 500];
 const amountSchema = z.object({ amountUsd: z.coerce.number().positive().max(1_000_000) });
 type AmountForm = z.input<typeof amountSchema>;
 
-type ProjectLite = { id: string; name: string; currency: string; category: string };
+type ProjectLite = {
+  id: string;
+  name: string;
+  currency: string;
+  category: string;
+  /** Dirección Stellar (testnet) de la org que recibe la donación. */
+  recipientAddress: string | null;
+};
 
 export function DonateFlow({ project }: { project: ProjectLite }) {
   const { t } = useLanguage();
@@ -95,15 +104,52 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const result = await submitDonation({
-        projectId: project.id,
-        amountUsd: amount,
-        walletAddress: wallet ?? undefined,
+      if (!wallet) throw new Error('NO_WALLET');
+      if (!project.recipientAddress) throw new Error('NO_RECIPIENT');
+
+      // Pago REAL en Stellar testnet: donante → dirección de la org.
+      const client = new StellarClient('testnet');
+      // Si la cuenta del donante no existe aún en testnet, la fondeamos (friendbot).
+      if (!(await client.accountExists(wallet))) {
+        await client.fundTestnet(wallet);
+      }
+      const signer = new WalletKitSigner(wallet, client.config.networkPassphrase);
+      const res = await client.executePayment(signer, {
+        destination: project.recipientAddress,
+        asset: XLM,
+        amount: String(amount),
       });
-      setIntent(result);
+      const txHash = res.hash;
+
+      // Registrar la donación con el hash real (best-effort: el pago ya ocurrió).
+      let result: DonationIntent;
+      try {
+        result = await submitDonation({
+          projectId: project.id,
+          amountUsd: amount,
+          walletAddress: wallet,
+          txHash,
+        });
+      } catch {
+        result = {
+          id: txHash,
+          projectId: project.id,
+          amountUsd: amount,
+          status: 'pending',
+          verificationCode: txHash,
+          createdAt: new Date().toISOString(),
+        };
+      }
+      setIntent(result.verificationCode ? result : { ...result, verificationCode: txHash });
       setStep(4);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : t('donate.submitError'));
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'NO_WALLET') setSubmitError('Conectá tu wallet antes de confirmar.');
+      else if (msg === 'NO_RECIPIENT') setSubmitError('Este proyecto no tiene dirección de recepción configurada.');
+      else if (msg.toLowerCase().includes('reject') || msg.toLowerCase().includes('denied')) setSubmitError('Firma cancelada en la wallet.');
+      else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('mainnet')) setSubmitError('Tu wallet está en Mainnet. Cambiá a Testnet para donar en la demo.');
+      else if (msg.includes('destination') || msg.includes('op_no_destination')) setSubmitError('La cuenta receptora de la org no existe en testnet todavía.');
+      else setSubmitError(t('donate.submitError'));
     } finally {
       setSubmitting(false);
     }

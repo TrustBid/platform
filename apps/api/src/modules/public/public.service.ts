@@ -161,6 +161,7 @@ export class PublicService {
           current_stage: string | null;
           beneficiaries_target: string;
           beneficiaries_reached: string;
+          recipient_address: string | null;
         }>(
           `SELECT
              p.id,
@@ -185,7 +186,12 @@ export class PublicService {
                SELECT SUM(b.count)
                FROM beneficiaries b
                WHERE b.project_id = p.id
-             ), 0) AS beneficiaries_reached
+             ), 0) AS beneficiaries_reached,
+             (
+               SELECT o.wallet_address
+               FROM organizations o
+               WHERE o.id = p.organization_id
+             ) AS recipient_address
            FROM projects p
            WHERE p.id = $1`,
           [id],
@@ -302,6 +308,7 @@ export class PublicService {
       beneficiariesTarget: Number(project.beneficiaries_target),
       beneficiariesReached: Number(project.beneficiaries_reached),
       currentStage: project.current_stage ?? '',
+      recipientAddress: project.recipient_address,
       pipeline,
       traceability,
       impact,
@@ -363,6 +370,10 @@ export class PublicService {
     const n = Number(countResult.rows[0]?.n ?? 0) + 1;
     const memoId = `PAY-${year}-${String(n).padStart(4, '0')}`;
 
+    // Si la donación se firmó on-chain (tx real en testnet), guardamos el hash.
+    const txHash = dto.txHash ?? null;
+    const txStatus = txHash ? 'submitted' : 'pending';
+
     const result = await this.pool.query<{
       id: string;
       project_id: string;
@@ -373,8 +384,8 @@ export class PublicService {
     }>(
       `INSERT INTO transactions
          (organization_id, project_id, beneficiary, concept, amount, asset_code,
-          memo_id, tx_status)
-       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, 'pending')
+          memo_id, tx_status, tx_hash)
+       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, $6, $7)
        RETURNING id, project_id, amount, tx_status, tx_hash, created_at`,
       [
         project.organization_id,
@@ -382,6 +393,8 @@ export class PublicService {
         dto.walletAddress ?? null,
         dto.amountUsd,
         memoId,
+        txStatus,
+        txHash,
       ],
     );
 
@@ -409,7 +422,7 @@ export class PublicService {
       amountUsd: Number(row.amount),
       memoId,
       sep7Link,
-      status: 'pending',
+      status: row.tx_status,
       createdAt: row.created_at.toISOString(),
     };
   }

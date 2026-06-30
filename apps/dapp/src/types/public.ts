@@ -70,6 +70,8 @@ export interface ProjectSummary {
 export interface Project extends ProjectSummary {
   description: string;
   currency: string;
+  /** Dirección Stellar (testnet) de la org que recibe las donaciones. */
+  recipientAddress?: string | null;
   pipeline: PipelineStage[];
   traceability: TraceabilityEntry[];
   impact: ImpactIndicator[];
@@ -85,6 +87,8 @@ export interface DonationInput {
   amountUsd: number;
   walletAddress?: string;
   walletProvider?: string;
+  /** Hash de la tx Stellar real (testnet) si la donación se firmó on-chain. */
+  txHash?: string;
 }
 
 export interface DonationIntent {
