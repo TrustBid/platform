@@ -208,10 +208,19 @@ export class ProjectsService {
     };
 
     if (dto.blockchainEnabled ?? true) {
+      // Usar wallet de la org como caller (I-15); fallback al servidor si aún no tiene wallet
+      const orgRow = await this.pool.query<{ wallet_address: string | null }>(
+        `SELECT wallet_address FROM organizations WHERE id = $1`,
+        [orgId],
+      );
+      const callerPublicKey =
+        orgRow.rows[0]?.wallet_address ??
+        (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
+
       const txHash = await this.soroban.allocateFunds(
         project.id,
         dto.budgetAmount,
-        this.serverPublicKey(),
+        callerPublicKey,
       );
       if (txHash) {
         project.allocationTxHash = txHash;
@@ -219,15 +228,10 @@ export class ProjectsService {
           `UPDATE projects SET allocation_tx_hash = $1 WHERE id = $2`,
           [txHash, project.id],
         );
-        this.logger.log(`Allocation anchored project=${project.id} tx=${txHash}`);
+        this.logger.log(`Allocation anchored project=${project.id} tx=${txHash} caller=${callerPublicKey}`);
       }
     }
 
     return project;
-  }
-
-  private serverPublicKey(): string {
-    // Server's Stellar public key — signs on behalf of the backend for contract calls
-    return process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
   }
 }

@@ -1,11 +1,18 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import type { CreateReportDto } from './dto/create-report.dto';
+import { SorobanService } from '../soroban/soroban.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  private readonly logger = new Logger(ReportsService.name);
+
+  constructor(
+    @Inject(DB_POOL) private readonly pool: Pool,
+    private readonly soroban: SorobanService,
+  ) {}
 
   async listByOrg(orgId: string) {
     const result = await this.pool.query<{
@@ -22,10 +29,12 @@ export class ReportsService {
       milestone_progress: string | null;
       submitted_at: Date | null;
       created_at: Date;
+      anchor_tx_hash: string | null;
     }>(
       `SELECT r.id, r.project_id, p.name AS project_name, r.report_type, r.status,
               r.title, r.period_start, r.period_end, r.funds_used_amount,
-              r.funds_used_asset, r.milestone_progress, r.submitted_at, r.created_at
+              r.funds_used_asset, r.milestone_progress, r.submitted_at, r.created_at,
+              r.anchor_tx_hash
        FROM reports r
        JOIN projects p ON p.id = r.project_id
        WHERE r.organization_id = $1
@@ -48,6 +57,7 @@ export class ReportsService {
       milestoneProgress: r.milestone_progress !== null ? Number(r.milestone_progress) : null,
       submittedAt: r.submitted_at ? r.submitted_at.toISOString() : null,
       createdAt: r.created_at.toISOString(),
+      anchorTxHash: r.anchor_tx_hash ?? null,
     }));
   }
 
@@ -84,6 +94,37 @@ export class ReportsService {
       ],
     );
 
-    return { id: result.rows[0].id, createdAt: result.rows[0].created_at.toISOString() };
+    const reportId = result.rows[0].id;
+
+    // Anclar reporte on-chain con expense-anchor (I-12 / I-20)
+    // El hash es un fingerprint determinista del contenido del reporte.
+    const receiptHash = createHash('sha256')
+      .update(`${reportId}:${dto.projectId}:${dto.title}:${dto.fundsUsedAmount ?? 0}:${dto.periodStart}:${dto.periodEnd}`)
+      .digest('hex');
+
+    const serverPubKey = process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
+    const amountXlm = Number(dto.fundsUsedAmount ?? 0);
+
+    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
+    this.soroban
+      .anchorExpense({
+        expenseId: reportId,
+        projectId: dto.projectId,
+        amountXlm,
+        receiptHash,
+        callerPublicKey: serverPubKey,
+      })
+      .then((txHash) => {
+        if (txHash) {
+          this.pool.query(
+            `UPDATE reports SET anchor_tx_hash = $1 WHERE id = $2`,
+            [txHash, reportId],
+          ).catch((e) => this.logger.error('anchor_tx_hash update failed', e));
+          this.logger.log(`Report ${reportId} anchored on-chain tx=${txHash}`);
+        }
+      })
+      .catch((e) => this.logger.error('anchorExpense failed for report', e));
+
+    return { id: reportId, createdAt: result.rows[0].created_at.toISOString() };
   }
 }
