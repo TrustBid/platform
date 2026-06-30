@@ -213,7 +213,7 @@ export class AuthService {
     privyToken: string,
     registration?: RegistrationData,
   ): Promise<{ token: string }> {
-    const { stellarPublicKey } = await this.privy.verifyAndGetStellarWallet(privyToken);
+    const { stellarPublicKey } = await this.privy.verifyAndEnsureStellarWallet(privyToken);
     // Mismo punto de convergencia que SEP-10; el proveedor se fuerza a 'privy'.
     return this.bootstrapAndIssueToken(stellarPublicKey, {
       ...registration,

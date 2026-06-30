@@ -15,8 +15,10 @@ import { createRemoteJWKSet, type JWTVerifyGetKey } from 'jose';
 
 /**
  * Riel de auth para usuarios NO nativos cripto (Privy: login email/OTP + wallet
- * Stellar embebida). El embedded wallet se crea client-side (config de Privy);
- * el backend sólo valida el access token (JWKS) y lee su pubkey Stellar.
+ * Stellar embebida). El front sólo autentica; el backend valida el access token
+ * (JWKS) y, como Stellar es Tier 2, CREA la wallet embebida server-side si el
+ * usuario aún no la tiene (pregenerateWallets) — la creación client-side del
+ * React SDK es solo EVM/Solana.
  *
  * Init lazy: si faltan las env de Privy, la API igual bootea (SEP-10 sigue
  * funcionando) y sólo falla este riel al invocarlo.
@@ -47,10 +49,10 @@ export class PrivyService {
   }
 
   /**
-   * Verifica el access token de Privy y devuelve la pubkey del embedded wallet
-   * Stellar del usuario.
+   * Verifica el access token de Privy y asegura (crea si falta) la wallet
+   * Stellar embebida del usuario, devolviendo su pubkey.
    */
-  async verifyAndGetStellarWallet(
+  async verifyAndEnsureStellarWallet(
     accessToken: string,
   ): Promise<{ privyUserId: string; stellarPublicKey: string }> {
     this.init();
@@ -71,18 +73,37 @@ export class PrivyService {
     }
 
     const user = await this.client!.users()._get(userId);
+    let stellarAddress = this.findStellarAddress(user.linked_accounts);
 
-    // Buscar el embedded wallet con chain_type 'stellar' entre las cuentas linkeadas.
-    const stellar = user.linked_accounts.find(
-      (a) => 'chain_type' in a && a.chain_type === 'stellar' && 'address' in a,
-    );
-    if (!stellar || !('address' in stellar)) {
+    // Tier 2: si no existe, la creamos server-side (pregenerate para el usuario).
+    if (!stellarAddress) {
+      const updated = await this.client!.users().pregenerateWallets(userId, {
+        wallets: [{ chain_type: 'stellar' }],
+      });
+      stellarAddress = this.findStellarAddress(updated.linked_accounts);
+    }
+
+    if (!stellarAddress) {
       throw new UnauthorizedException({
         code: 'no_stellar_wallet',
-        message: 'El usuario de Privy no tiene una wallet Stellar embebida',
+        message: 'No se pudo obtener ni crear la wallet Stellar embebida del usuario',
       });
     }
 
-    return { privyUserId: userId, stellarPublicKey: stellar.address };
+    return { privyUserId: userId, stellarPublicKey: stellarAddress };
+  }
+
+  // Busca el embedded wallet con chain_type 'stellar' entre las cuentas linkeadas.
+  private findStellarAddress(linkedAccounts: ReadonlyArray<unknown>): string | null {
+    for (const a of linkedAccounts) {
+      if (
+        a && typeof a === 'object' &&
+        'chain_type' in a && (a as { chain_type: unknown }).chain_type === 'stellar' &&
+        'address' in a && typeof (a as { address: unknown }).address === 'string'
+      ) {
+        return (a as { address: string }).address;
+      }
+    }
+    return null;
   }
 }
