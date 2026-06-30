@@ -67,9 +67,14 @@ export async function sep10Login(
   if (!tokenRes.ok) throw new Error('Failed to verify challenge');
   const { token } = await tokenRes.json();
 
-  localStorage.setItem(JWT_KEY, token);
-  writeJwtCookie(token);
+  setSession(token);
   return token;
+}
+
+/** Persiste un JWT de sesión (cualquier riel: SEP-10 o Privy) en localStorage + cookie. */
+export function setSession(token: string): void {
+  if (typeof window !== 'undefined') localStorage.setItem(JWT_KEY, token);
+  writeJwtCookie(token);
 }
 
 export function getJwt(): string | null {
