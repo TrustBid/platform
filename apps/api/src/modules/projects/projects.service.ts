@@ -1,11 +1,17 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
+import { SorobanService } from '../soroban/soroban.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  private readonly logger = new Logger(ProjectsService.name);
+
+  constructor(
+    @Inject(DB_POOL) private readonly pool: Pool,
+    private readonly soroban: SorobanService,
+  ) {}
 
   async listByOrg(orgId: string) {
     const result = await this.pool.query<{
@@ -112,6 +118,33 @@ export class ProjectsService {
       ],
     );
 
-    return { id: result.rows[0].id, createdAt: result.rows[0].created_at.toISOString() };
+    const project = {
+      id: result.rows[0].id as string,
+      createdAt: result.rows[0].created_at.toISOString() as string,
+      allocationTxHash: null as string | null,
+    };
+
+    if (dto.blockchainEnabled ?? true) {
+      const txHash = await this.soroban.allocateFunds(
+        project.id,
+        dto.budgetAmount,
+        this.serverPublicKey(),
+      );
+      if (txHash) {
+        project.allocationTxHash = txHash;
+        await this.pool.query(
+          `UPDATE projects SET allocation_tx_hash = $1 WHERE id = $2`,
+          [txHash, project.id],
+        );
+        this.logger.log(`Allocation anchored project=${project.id} tx=${txHash}`);
+      }
+    }
+
+    return project;
+  }
+
+  private serverPublicKey(): string {
+    // Server's Stellar public key — signs on behalf of the backend for contract calls
+    return process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
   }
 }

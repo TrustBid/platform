@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,8 +32,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { projects, loading, error, createProject } = useProjects();
   const [isFormOpen, setIsFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') setIsFormOpen(true);
+  }, [searchParams]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -79,16 +84,13 @@ export default function ProjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">Projects</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Manage your fund management projects</p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 transition-colors"
-            onClick={() => setIsFormOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
-          <ModeToggle />
-        </div>
+        <Button
+          className="bg-[#0F52BA] hover:bg-blue-700 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 transition-colors self-start sm:self-auto"
+          onClick={() => setIsFormOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Nuevo proyecto
+        </Button>
       </div>
 
       {loading ? (
