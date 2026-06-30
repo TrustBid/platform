@@ -10,10 +10,22 @@ export async function sep10Login(walletAddress: string): Promise<string> {
   if (!challengeRes.ok) throw new Error('Failed to get challenge');
   const { transaction, network_passphrase } = await challengeRes.json();
 
-  const { signedTxXdr } = await StellarWalletsKit.signTransaction(transaction, {
-    address: walletAddress,
-    networkPassphrase: network_passphrase,
-  });
+  let signedTxXdr: string;
+  try {
+    ({ signedTxXdr } = await StellarWalletsKit.signTransaction(transaction, {
+      address: walletAddress,
+      networkPassphrase: network_passphrase,
+    }));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.toLowerCase().includes('main net') || msg.toLowerCase().includes('mainnet') || msg.toLowerCase().includes('network')) {
+      throw new Error('NETWORK_MISMATCH');
+    }
+    if (msg.toLowerCase().includes('reject') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('cancel')) {
+      throw new Error('USER_REJECTED');
+    }
+    throw err;
+  }
 
   const tokenRes = await fetch(`${API}/auth/token`, {
     method: 'POST',

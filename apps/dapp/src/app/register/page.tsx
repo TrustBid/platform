@@ -51,10 +51,12 @@ export default function RegisterPage() {
       router.push('/dashboard');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : '';
-      if (raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')) {
+      if (raw === 'NETWORK_MISMATCH') {
+        setError('Tu wallet está en Mainnet. Cambia a Testnet en Freighter → Settings → Network.');
+      } else if (raw === 'USER_REJECTED') {
+        setError('Firma cancelada. Aprueba el challenge en tu wallet para continuar.');
+      } else if (raw.includes('fetch') || raw.includes('Failed')) {
         setError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
-      } else if (raw.includes('sign') || raw.includes('wallet') || raw.includes('user rejected')) {
-        setError('No se pudo firmar con la wallet. Asegúrate de aprobar la solicitud.');
       } else {
         setError(raw || 'No se pudo completar el registro. Intenta de nuevo.');
       }

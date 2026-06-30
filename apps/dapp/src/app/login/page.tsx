@@ -26,10 +26,12 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to get') || msg.includes('Failed to verify')) {
+      if (msg === 'NETWORK_MISMATCH') {
+        setWalletError('Tu wallet está en Mainnet. Cambia a Testnet en Freighter → Settings → Network.');
+      } else if (msg === 'USER_REJECTED') {
+        setWalletError('Firma cancelada. Aprueba el challenge en tu wallet para continuar.');
+      } else if (msg.includes('fetch') || msg.includes('Failed')) {
         setWalletError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
-      } else if (msg.includes('sign') || msg.includes('rejected') || msg.includes('denied')) {
-        setWalletError('Firma rechazada. Aprueba el challenge en tu wallet para continuar.');
       } else {
         setWalletError('No se pudo conectar la wallet. Asegúrate de que esté instalada y desbloqueada.');
       }
