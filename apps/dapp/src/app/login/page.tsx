@@ -25,8 +25,14 @@ export default function LoginPage() {
       await sep10Login(address);
       router.push('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
-      setWalletError(msg.includes('Failed') ? 'Error al verificar la wallet. Intenta de nuevo.' : 'No se pudo conectar la wallet.');
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to get') || msg.includes('Failed to verify')) {
+        setWalletError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
+      } else if (msg.includes('sign') || msg.includes('rejected') || msg.includes('denied')) {
+        setWalletError('Firma rechazada. Aprueba el challenge en tu wallet para continuar.');
+      } else {
+        setWalletError('No se pudo conectar la wallet. Asegúrate de que esté instalada y desbloqueada.');
+      }
       setStep('idle');
     } finally {
       setConnecting(false);
