@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Layers, CheckCircle2, Clock, ExternalLink, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
@@ -68,6 +69,28 @@ export default function ProjectDetailPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  async function handleStatusChange(newStatus: string) {
+    if (!project || newStatus === project.status) return;
+    setUpdatingStatus(true);
+    setStatusError(null);
+    try {
+      const res = await fetch(`${API}/my/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.status === 401) { router.push('/login'); return; }
+      if (!res.ok) throw new Error('error');
+      setProject(await res.json());
+    } catch {
+      setStatusError('No se pudo actualizar el estado.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -287,6 +310,27 @@ export default function ProjectDetailPage() {
 
         {/* Columna derecha — metadata */}
         <div className="space-y-4">
+
+          {/* Estado del proyecto */}
+          <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">Estado del proyecto</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              <Select value={project.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
+                <SelectTrigger className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100">
+                  {Object.entries(STATUS_CONFIG).map(([value, cfg]) => (
+                    <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {statusError && <p className="text-xs text-red-600 dark:text-red-400">{statusError}</p>}
+            </CardContent>
+          </Card>
+
           <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
             <CardContent className="p-5 space-y-4">
               {project.beneficiary && (

@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
 
 @Controller('my/projects')
@@ -26,6 +27,15 @@ export class ProjectsController {
     @CurrentOrg() orgId: string,
   ) {
     return this.projectsService.getTransactions(id, orgId);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateProjectDto,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.update(id, orgId, body);
   }
 
   @Post()
