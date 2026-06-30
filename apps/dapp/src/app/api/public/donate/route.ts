@@ -7,6 +7,7 @@ const schema = z.object({
   amountUsd: z.number().positive().max(1_000_000),
   walletAddress: z.string().optional(),
   walletProvider: z.string().optional(),
+  txHash: z.string().optional(),
 });
 
 export async function POST(request: Request) {

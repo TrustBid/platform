@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Pool } from 'pg';
-import { randomUUID } from 'crypto';
 import { DB_POOL } from '../../database/database.module';
 import type { ProjectsQueryDto } from './dto/projects-query.dto';
 import type { CreateDonationDto } from './dto/create-donation.dto';
@@ -158,6 +157,7 @@ export class PublicService {
           current_stage: string | null;
           beneficiaries_target: string;
           beneficiaries_reached: string;
+          recipient_address: string | null;
         }>(
           `SELECT
              p.id,
@@ -182,7 +182,12 @@ export class PublicService {
                SELECT SUM(b.count)
                FROM beneficiaries b
                WHERE b.project_id = p.id
-             ), 0) AS beneficiaries_reached
+             ), 0) AS beneficiaries_reached,
+             (
+               SELECT o.wallet_address
+               FROM organizations o
+               WHERE o.id = p.organization_id
+             ) AS recipient_address
            FROM projects p
            WHERE p.id = $1`,
           [id],
@@ -299,6 +304,7 @@ export class PublicService {
       beneficiariesTarget: Number(project.beneficiaries_target),
       beneficiariesReached: Number(project.beneficiaries_reached),
       currentStage: project.current_stage ?? '',
+      recipientAddress: project.recipient_address,
       pipeline,
       traceability,
       impact,
@@ -344,7 +350,14 @@ export class PublicService {
       });
     }
 
-    const memoId = randomUUID();
+    // memo_id debe matchear el CHECK PAY-####-#### del esquema.
+    const rand4 = () => Math.floor(1000 + Math.random() * 9000).toString();
+    const memoId = `PAY-${rand4()}-${rand4()}`;
+
+    // Si la donación se firmó on-chain (tx real en testnet), guardamos el hash y
+    // queda 'submitted'; si no, es una intención 'pending'.
+    const txHash = dto.txHash ?? null;
+    const txStatus = txHash ? 'submitted' : 'pending';
 
     const result = await this.pool.query<{
       id: string;
@@ -356,8 +369,8 @@ export class PublicService {
     }>(
       `INSERT INTO transactions
          (organization_id, project_id, beneficiary, concept, amount, asset_code,
-          memo_id, tx_status)
-       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, 'pending')
+          memo_id, tx_status, tx_hash)
+       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, $6, $7)
        RETURNING id, project_id, amount, tx_status, tx_hash, created_at`,
       [
         project.organization_id,
@@ -365,6 +378,8 @@ export class PublicService {
         dto.walletAddress ?? null,
         dto.amountUsd,
         memoId,
+        txStatus,
+        txHash,
       ],
     );
 
@@ -373,8 +388,8 @@ export class PublicService {
       id: row.id,
       projectId: row.project_id,
       amountUsd: Number(row.amount),
-      status: 'pending',
-      verificationCode: null,
+      status: row.tx_status,
+      verificationCode: row.tx_hash,
       createdAt: row.created_at.toISOString(),
     };
   }
