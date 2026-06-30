@@ -122,7 +122,7 @@ export class PublicService {
          AND ($1::text IS NULL OR
               p.name ILIKE '%' || $1 || '%' OR
               p.description ILIKE '%' || $1 || '%')
-         AND ($2::text IS NULL OR p.category = $2::text)
+         AND ($2::text IS NULL OR p.category::text = $2::text)
        ORDER BY p.created_at DESC`,
       [q ?? null, category ?? null],
     );
