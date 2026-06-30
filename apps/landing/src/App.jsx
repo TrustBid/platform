@@ -6,6 +6,7 @@ import FAQ from './components/FAQ';
 import Pricing from './components/Pricing';
 import Footer from './components/Footer';
 import AccessModal from './components/AccessModal';
+import OnboardingFlow from './components/OnboardingFlow';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
       <Pricing />
       <Footer />
       <AccessModal />
+      <OnboardingFlow />
     </div>
   );
 }

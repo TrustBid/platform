@@ -1,26 +1,21 @@
-// src/components/AccessModal.jsx
 import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n/LanguageContext';
 import { ACCESS_EVENT } from '../lib/accessModal';
-import logo from '../assets/logoFooter.webp';
+import LogoNav from '../assets/LogoNav.webp';
 
-// Formspree endpoint. The id isn't secret (it travels in the browser request
-// anyway), so we hardcode it as the default and let VITE_FORMSPREE_ID override
-// it without a code change. This keeps the form working regardless of the
-// build-time env config.
 const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || 'mdarorkz';
 const ENDPOINT = `https://formspree.io/f/${FORMSPREE_ID}`;
 const STORAGE_KEY = 'tb_access';
 
 const inputCls =
-  'w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/12 text-sm text-white ' +
-  'placeholder:text-white/25 transition outline-none focus:border-[#0B28FE] ' +
-  'focus:bg-white/[0.06] focus:ring-2 focus:ring-[#0B28FE]/25';
+  'w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-sm text-gray-900 ' +
+  'placeholder:text-gray-400 transition outline-none focus:border-[#0B28FE] ' +
+  'focus:ring-2 focus:ring-[#0B28FE]/15';
 
 function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="block mb-1.5 text-[12px] font-medium text-white/45">{label}</span>
+      <span className="block mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</span>
       {children}
     </label>
   );
@@ -32,15 +27,14 @@ export default function AccessModal() {
 
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState('');
-  const [status, setStatus] = useState('idle'); // idle | sending | success | error
-  // Remembers what the visitor typed before, so the form prefills itself next
-  // time — a reliable "fills itself" that doesn't depend on browser autofill.
+  const [prefill, setPrefill] = useState({});
+  const [status, setStatus] = useState('idle');
   const [saved, setSaved] = useState({});
 
-  // Listen for open requests from any CTA across the page.
   useEffect(() => {
     const onOpen = (e) => {
       setPlan(e.detail?.plan || '');
+      setPrefill(e.detail?.prefill || {});
       setStatus('idle');
       let prev = {};
       try { prev = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { /* ignore */ }
@@ -51,7 +45,6 @@ export default function AccessModal() {
     return () => window.removeEventListener(ACCESS_EVENT, onOpen);
   }, []);
 
-  // Persist field values as the visitor types (kept on their own device).
   const persist = (e) => {
     try {
       const obj = Object.fromEntries(new FormData(e.currentTarget).entries());
@@ -59,7 +52,6 @@ export default function AccessModal() {
     } catch { /* ignore */ }
   };
 
-  // Close on Escape and lock body scroll while open.
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
@@ -81,27 +73,27 @@ export default function AccessModal() {
     const data = new FormData(e.target);
     if (plan) data.append('plan', plan);
     try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        body: data,
-        headers: { Accept: 'application/json' },
-      });
+      const res = await fetch(ENDPOINT, { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       setStatus(res.ok ? 'success' : 'error');
     } catch {
       setStatus('error');
     }
   };
 
+  const defaultName  = prefill.name         || saved.name         || '';
+  const defaultOrg   = prefill.organization  || saved.organization || '';
+  const defaultEmail = prefill.email         || saved.email        || '';
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-overlay-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-overlay-in"
       onClick={() => setOpen(false)}
       role="dialog"
       aria-modal="true"
       aria-label={a.title}
     >
       <div
-        className="animate-modal-in relative w-full max-w-md rounded-3xl border border-white/10 bg-[#0f1014] shadow-2xl shadow-black/60 max-h-[92vh] overflow-y-auto"
+        className="animate-modal-in relative w-full max-w-md rounded-3xl border border-gray-200 bg-white shadow-2xl shadow-black/10 max-h-[92vh] overflow-y-auto"
         style={{ fontFamily: 'Inter' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -110,9 +102,9 @@ export default function AccessModal() {
           type="button"
           onClick={() => setOpen(false)}
           aria-label={a.close}
-          className="absolute top-4 right-4 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white/40 hover:bg-white/10 hover:text-white transition"
+          className="absolute top-4 right-4 z-10 w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
@@ -125,10 +117,10 @@ export default function AccessModal() {
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
               </div>
-              <h3 className="text-[26px] leading-tight font-extrabold text-white" style={{ fontFamily: 'Rubik' }}>
+              <h3 className="text-[26px] leading-tight font-extrabold text-gray-900" style={{ fontFamily: 'Rubik' }}>
                 {a.successTitle}
               </h3>
-              <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-white/55">
+              <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-gray-500">
                 {a.successBody}
               </p>
               <button
@@ -142,47 +134,41 @@ export default function AccessModal() {
             </div>
           ) : (
             <>
-              <img src={logo} alt="TrustBid" className="h-6 w-auto mb-6 select-none" />
+              <img src={LogoNav} alt="TrustBid" className="h-6 w-auto mb-6 select-none" />
 
-              <h3 className="text-[28px] leading-[1.08] font-extrabold text-white" style={{ fontFamily: 'Rubik' }}>
+              <h3 className="text-[26px] leading-[1.08] font-extrabold text-gray-900" style={{ fontFamily: 'Rubik' }}>
                 {a.title}
               </h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-white/55">{a.subtitle}</p>
+              <p className="mt-2.5 text-sm leading-relaxed text-gray-500">{a.subtitle}</p>
 
               {plan && (
-                <div className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-[#0B28FE]/12 text-[#9fb0ff] border border-[#0B28FE]/25">
+                <div className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full bg-[#0B28FE]/8 text-[#0B28FE] border border-[#0B28FE]/20">
                   {a.planLabel}: {plan}
                 </div>
               )}
 
               <form onSubmit={handleSubmit} onInput={persist} className="mt-6 space-y-4">
                 <Field label={a.name}>
-                  <input name="name" type="text" required autoComplete="name" autoCapitalize="words" defaultValue={saved.name || ''} className={inputCls} />
+                  <input name="name" type="text" required autoComplete="name" autoCapitalize="words" defaultValue={defaultName} className={inputCls} />
                 </Field>
                 <Field label={a.org}>
-                  <input name="organization" type="text" required autoComplete="organization" defaultValue={saved.organization || ''} className={inputCls} />
+                  <input name="organization" type="text" required autoComplete="organization" defaultValue={defaultOrg} className={inputCls} />
                 </Field>
                 <Field label={a.email}>
-                  <input name="email" type="email" required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} defaultValue={saved.email || ''} className={inputCls} />
+                  <input name="email" type="email" required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} defaultValue={defaultEmail} className={inputCls} />
                 </Field>
                 <Field label={a.reasonLabel}>
                   <div className="relative">
                     <select
                       name="reason"
                       defaultValue={saved.reason || a.reasons[0]}
-                      style={{ colorScheme: 'dark' }}
                       className={`${inputCls} appearance-none pr-10 cursor-pointer`}
                     >
                       {a.reasons.map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
-                    <svg
-                      aria-hidden
-                      className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40"
-                      width="16" height="16" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    >
+                    <svg className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
                   </div>
@@ -192,7 +178,7 @@ export default function AccessModal() {
                 </Field>
 
                 {status === 'error' && (
-                  <p className="text-sm text-red-400">{a.error}</p>
+                  <p className="text-sm text-red-500 font-medium">{a.error}</p>
                 )}
 
                 <button
@@ -204,7 +190,7 @@ export default function AccessModal() {
                   {status === 'sending' ? a.sending : a.submit}
                 </button>
 
-                <p className="text-center text-xs text-white/40 pt-1">{a.note}</p>
+                <p className="text-center text-xs text-gray-400 pt-1">{a.note}</p>
               </form>
             </>
           )}

@@ -5,7 +5,12 @@ import gradient from '../assets/gradient.webp';
 import logoGradient from '../assets/logoGradient.webp';
 import LanguageSwitcher from './LanguageSwitcher';
 import { openAccessModal } from '../lib/accessModal';
+import { openOnboarding } from '../lib/onboardingFlow';
 import { useI18n } from '../i18n/LanguageContext';
+
+const DAPP_LOGIN = import.meta.env.VITE_DAPP_URL
+  ? `${import.meta.env.VITE_DAPP_URL}/login`
+  : 'https://dapp-production-52e7.up.railway.app/login';
 
 export default function Hero() {
   const { t } = useI18n();
@@ -48,8 +53,14 @@ export default function Hero() {
             <div className="hidden md:block">
               <LanguageSwitcher />
             </div>
+            <a
+              href={DAPP_LOGIN}
+              className="hidden sm:inline-flex items-center px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-gray-800 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition"
+            >
+              {t.nav.signIn}
+            </a>
             <button
-              onClick={() => openAccessModal({ source: 'nav' })}
+              onClick={() => openOnboarding({ source: 'nav' })}
               className="bg-[#0B28FE] hover:bg-blue-700 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition shadow-lg shadow-blue-500/25"
             >
               {t.nav.getStarted}
@@ -91,6 +102,22 @@ export default function Hero() {
                 {item.label}
               </a>
             ))}
+            <div className="flex flex-col gap-2 pt-3">
+              <a
+                href={DAPP_LOGIN}
+                onClick={() => setMenuOpen(false)}
+                className="w-full text-center py-2.5 rounded-full text-sm font-semibold text-gray-800 border border-gray-300 hover:bg-gray-50 transition"
+              >
+                {t.nav.signIn}
+              </a>
+              <button
+                onClick={() => { setMenuOpen(false); openOnboarding({ source: 'nav' }); }}
+                className="w-full py-2.5 rounded-full text-sm font-semibold text-white transition"
+                style={{ backgroundColor: '#0B28FE' }}
+              >
+                {t.nav.getStarted}
+              </button>
+            </div>
             <LanguageSwitcher inline />
           </div>
         </div>
