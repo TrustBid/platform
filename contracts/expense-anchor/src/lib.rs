@@ -8,7 +8,7 @@ pub struct AnchoredExpense {
     pub project_id: Symbol,
     pub submitted_by: Address,
     pub amount_xlm: i128,
-    pub receipt_hash: Bytes,  // SHA-256 del comprobante almacenado en R2
+    pub receipt_hash: Bytes, // SHA-256 del comprobante almacenado en R2
     pub anchored_at: u64,
 }
 
@@ -59,5 +59,129 @@ impl ExpenseAnchor {
         env.storage()
             .persistent()
             .get(&DataKey::Expense(expense_id))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
+    use soroban_sdk::{symbol_short, vec, Address, Bytes, Env, IntoVal, Symbol};
+
+    fn make_hash(env: &Env, seed: u8) -> Bytes {
+        let mut raw = [seed; 32];
+        raw[0] = seed;
+        Bytes::from_array(env, &raw)
+    }
+
+    fn setup() -> (Env, ExpenseAnchorClient<'static>, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(ExpenseAnchor, ());
+        let client = ExpenseAnchorClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        (env, client, admin)
+    }
+
+    #[test]
+    fn test_anchor_and_get() {
+        let (env, client, admin) = setup();
+
+        let expense_id = symbol_short!("exp1");
+        let project_id = symbol_short!("proj1");
+        let hash = make_hash(&env, 0xAB);
+
+        client.anchor(&admin, &expense_id, &project_id, &250_0000000, &hash);
+
+        let exp = client.get_expense(&expense_id).unwrap();
+        assert_eq!(exp.expense_id, expense_id);
+        assert_eq!(exp.project_id, project_id);
+        assert_eq!(exp.submitted_by, admin);
+        assert_eq!(exp.amount_xlm, 250_0000000);
+        assert_eq!(exp.receipt_hash, hash);
+    }
+
+    #[test]
+    fn test_get_nonexistent_returns_none() {
+        let (_env, client, _admin) = setup();
+        assert!(client.get_expense(&symbol_short!("ghost")).is_none());
+    }
+
+    #[test]
+    fn test_anchored_at_matches_ledger_time() {
+        let (env, client, admin) = setup();
+        env.ledger().set_timestamp(1_700_000_000);
+
+        let expense_id = symbol_short!("exp2");
+        client.anchor(
+            &admin,
+            &expense_id,
+            &symbol_short!("proj1"),
+            &100_0000000,
+            &make_hash(&env, 0x01),
+        );
+
+        let exp = client.get_expense(&expense_id).unwrap();
+        assert_eq!(exp.anchored_at, 1_700_000_000);
+    }
+
+    #[test]
+    fn test_different_expenses_independent() {
+        let (env, client, admin) = setup();
+        let proj = symbol_short!("proj1");
+
+        client.anchor(&admin, &symbol_short!("expA"), &proj, &100_0000000, &make_hash(&env, 0x01));
+        client.anchor(&admin, &symbol_short!("expB"), &proj, &200_0000000, &make_hash(&env, 0x02));
+
+        assert_eq!(client.get_expense(&symbol_short!("expA")).unwrap().amount_xlm, 100_0000000);
+        assert_eq!(client.get_expense(&symbol_short!("expB")).unwrap().amount_xlm, 200_0000000);
+    }
+
+    #[test]
+    fn test_re_anchor_same_id_overwrites() {
+        let (env, client, admin) = setup();
+        let expense_id = symbol_short!("exp3");
+        let proj = symbol_short!("proj1");
+
+        client.anchor(&admin, &expense_id, &proj, &50_0000000, &make_hash(&env, 0x01));
+        client.anchor(&admin, &expense_id, &proj, &99_0000000, &make_hash(&env, 0x02));
+
+        let exp = client.get_expense(&expense_id).unwrap();
+        assert_eq!(exp.amount_xlm, 99_0000000);
+        assert_eq!(exp.receipt_hash, make_hash(&env, 0x02));
+    }
+
+    #[test]
+    fn test_anchor_emits_event() {
+        let (env, client, admin) = setup();
+
+        let expense_id = symbol_short!("exp4");
+        let project_id = symbol_short!("proj1");
+        let hash = make_hash(&env, 0xFF);
+
+        client.anchor(&admin, &expense_id, &project_id, &300_0000000, &hash);
+
+        let events = env.events().all();
+        assert!(!events.is_empty(), "debe emitir al menos un evento");
+
+        let (_, topics, _) = events.last().unwrap();
+        // El primer tópico es el Symbol "expense_anchored"
+        let expected_topic: Symbol = Symbol::new(&env, "expense_anchored");
+        assert_eq!(topics, vec![&env, expected_topic.into_val(&env)]);
+    }
+
+    #[test]
+    fn test_different_callers_can_anchor() {
+        let (env, client, _admin) = setup();
+        let caller_a = Address::generate(&env);
+        let caller_b = Address::generate(&env);
+        let proj = symbol_short!("proj1");
+
+        client.anchor(&caller_a, &symbol_short!("eA"), &proj, &10_0000000, &make_hash(&env, 0x0A));
+        client.anchor(&caller_b, &symbol_short!("eB"), &proj, &20_0000000, &make_hash(&env, 0x0B));
+
+        assert_eq!(client.get_expense(&symbol_short!("eA")).unwrap().submitted_by, caller_a);
+        assert_eq!(client.get_expense(&symbol_short!("eB")).unwrap().submitted_by, caller_b);
     }
 }
