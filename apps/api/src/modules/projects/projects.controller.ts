@@ -20,6 +20,14 @@ export class ProjectsController {
     return this.projectsService.getById(id, orgId);
   }
 
+  @Get(':id/transactions')
+  getTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getTransactions(id, orgId);
+  }
+
   @Post()
   create(
     @Body() body: CreateProjectDto,

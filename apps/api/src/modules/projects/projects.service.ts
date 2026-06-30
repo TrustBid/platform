@@ -66,6 +66,30 @@ export class ProjectsService {
     return result.rows[0];
   }
 
+  async getTransactions(projectId: string, orgId: string) {
+    const result = await this.pool.query<{
+      id: string;
+      memo_id: string;
+      tx_hash: string | null;
+      amount: string;
+      asset_code: string;
+      status: string;
+      executed_at: Date | null;
+      description: string | null;
+    }>(
+      `SELECT t.id, t.memo_id, t.tx_hash, t.amount, t.asset_code,
+              t.status, t.executed_at, t.description
+       FROM transactions t
+       JOIN projects p ON p.id = t.project_id
+       WHERE t.project_id = $1
+         AND p.organization_id = $2
+       ORDER BY t.executed_at DESC NULLS LAST, t.created_at DESC
+       LIMIT 100`,
+      [projectId, orgId],
+    );
+    return result.rows;
+  }
+
   async create(orgId: string, userId: string, dto: CreateProjectDto) {
     const result = await this.pool.query<{ id: string; created_at: Date }>(
       `INSERT INTO projects
