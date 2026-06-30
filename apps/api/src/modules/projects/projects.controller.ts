@@ -1,0 +1,31 @@
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { ProjectsService } from './projects.service';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
+
+@Controller('my/projects')
+export class ProjectsController {
+  constructor(private readonly projectsService: ProjectsService) {}
+
+  @Get()
+  list(@CurrentOrg() orgId: string) {
+    return this.projectsService.listByOrg(orgId);
+  }
+
+  @Get(':id')
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getById(id, orgId);
+  }
+
+  @Post()
+  create(
+    @Body() body: CreateProjectDto,
+    @CurrentOrg() orgId: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.projectsService.create(orgId, user.sub, body);
+  }
+}
