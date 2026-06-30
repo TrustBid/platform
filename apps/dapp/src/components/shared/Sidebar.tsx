@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -47,6 +48,26 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+
+  // Estado real de la red: ping a Horizon testnet (CORS permitido).
+  const [netStatus, setNetStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  useEffect(() => {
+    let cancelled = false
+    const horizon = process.env.NEXT_PUBLIC_HORIZON_URL ?? 'https://horizon-testnet.stellar.org'
+    fetch(horizon, { method: 'GET' })
+      .then((r) => { if (!cancelled) setNetStatus(r.ok ? 'online' : 'offline') })
+      .catch(() => { if (!cancelled) setNetStatus('offline') })
+    return () => { cancelled = true }
+  }, [])
+
+  const netDot =
+    netStatus === 'online'
+      ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+      : netStatus === 'offline'
+        ? 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+        : 'bg-amber-400 animate-pulse'
+  const netLabel =
+    netStatus === 'online' ? 'Red operativa' : netStatus === 'offline' ? 'Sin conexión a la red' : 'Verificando red…'
 
   const initials =
     userName
@@ -131,10 +152,10 @@ export function AppSidebar({
           <SidebarGroupContent className="mt-2">
             <SidebarMenu>
               <SidebarMenuItem>
-                <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-600 dark:text-zinc-400 text-sm">
+                <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-600 dark:text-zinc-400 text-sm" title={netLabel}>
                   <Shield className="h-4 w-4 text-zinc-600 dark:text-zinc-500" />
                   <span className="text-zinc-700 dark:text-zinc-300">Stellar Testnet</span>
-                  <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
+                  <span className={`ml-auto flex h-2 w-2 rounded-full ${netDot}`} />
                 </div>
               </SidebarMenuItem>
             </SidebarMenu>
