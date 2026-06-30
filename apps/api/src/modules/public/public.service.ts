@@ -9,12 +9,16 @@ import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import type { ProjectsQueryDto } from './dto/projects-query.dto';
 import type { CreateDonationDto } from './dto/create-donation.dto';
+import { HorizonWatcherService } from '../horizon/horizon-watcher.service';
+
+const DONATION_WATCH_WINDOW_MS = 30 * 60 * 1000; // 30 minutos
 
 @Injectable()
 export class PublicService {
   constructor(
     @Inject(DB_POOL) private readonly pool: Pool,
     private readonly config: ConfigService,
+    private readonly horizonWatcher: HorizonWatcherService,
   ) {}
 
   // ── GET /ngo ─────────────────────────────────────────────────────────────────
@@ -415,6 +419,16 @@ export class PublicService {
         `&memo_type=text` +
         `&msg=Donaci%C3%B3n+TrustBid`
       : null;
+
+    // Si no vino con txHash (flujo SEP-7), vigilar Horizon para confirmar el pago
+    if (!txHash && destination) {
+      await this.horizonWatcher.watchDonation({
+        donationId: row.id,
+        memoId,
+        orgWallet: destination,
+        deadlineMs: Date.now() + DONATION_WATCH_WINDOW_MS,
+      });
+    }
 
     return {
       id: row.id,

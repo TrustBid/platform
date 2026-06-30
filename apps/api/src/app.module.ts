@@ -9,6 +9,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { OrgModule } from './modules/org/org.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { HorizonWatcherModule } from './modules/horizon/horizon-watcher.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -22,6 +23,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     OrgModule,
     ReportsModule,
     OrganizationsModule,
+    HorizonWatcherModule,
   ],
   controllers: [AppController],
   providers: [
