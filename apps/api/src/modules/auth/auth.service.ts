@@ -26,6 +26,13 @@ import { REDIS_CLIENT } from './auth.constants';
 const NONCE_TTL = 600; // 10 minutes
 const AUTH_DOMAIN = 'trustbid auth';
 
+// Datos opcionales del formulario de registro, usados solo en el bootstrap inicial.
+interface RegistrationData {
+  orgName?: string;
+  country?: string;
+  role?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly networkPassphrase: string;
@@ -89,7 +96,10 @@ export class AuthService {
 
   // ── Flujo A · Paso 2: verificar tx firmada y emitir JWT ─────────────────────
 
-  async verifyAndIssueToken(xdrBase64: string): Promise<{ token: string }> {
+  async verifyAndIssueToken(
+    xdrBase64: string,
+    registration?: RegistrationData,
+  ): Promise<{ token: string }> {
     let tx: Transaction;
     try {
       const envelope = TransactionBuilder.fromXDR(
@@ -166,8 +176,8 @@ export class AuthService {
       });
     }
 
-    // Find or auto-create user
-    const user = await this.findOrCreateUser(clientAccountId);
+    // Find or auto-create user (usa los datos de registro solo si es la 1ª vez)
+    const user = await this.findOrCreateUser(clientAccountId, registration);
 
     const token = await this.jwtService.signAsync({
       sub: user.id,
@@ -234,7 +244,7 @@ export class AuthService {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private async findOrCreateUser(walletAddress: string) {
+  private async findOrCreateUser(walletAddress: string, registration?: RegistrationData) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -264,12 +274,17 @@ export class AuthService {
       const network = this.config.get('STELLAR_NETWORK', 'testnet');
       const slug = `org-${randomUUID().slice(0, 8)}`;
 
+      // Datos del registro (con fallbacks). country debe ser ISO [A-Z]{2}.
+      const orgName = registration?.orgName?.trim() || `Org ${walletAddress.slice(0, 8)}`;
+      const country = (registration?.country ?? 'XX').toUpperCase();
+      const role = registration?.role ?? 'admin';
+
       const orgResult = await client.query<{ id: string }>(
         `INSERT INTO organizations (name, slug, wallet_address, stellar_network, country)
-         VALUES ($1, $2, $3, $4, 'XX')
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug || '-' || substring(gen_random_uuid()::text, 1, 4)
          RETURNING id`,
-        [`Org ${walletAddress.slice(0, 8)}`, slug, walletAddress, network],
+        [orgName, slug, walletAddress, network, country],
       );
       const orgId = orgResult.rows[0].id;
 
@@ -283,9 +298,9 @@ export class AuthService {
         email: string | null;
       }>(
         `INSERT INTO users (organization_id, name, email, password_hash, role, is_active)
-         VALUES ($1, $2, $3, '$wallet-auth', 'admin', true)
+         VALUES ($1, $2, $3, '$wallet-auth', $4, true)
          RETURNING id, organization_id, role, name, email`,
-        [orgId, `Admin ${walletAddress.slice(0, 8)}`, walletEmail],
+        [orgId, `Usuario ${walletAddress.slice(0, 8)}`, walletEmail, role],
       );
       const user = userResult.rows[0];
 

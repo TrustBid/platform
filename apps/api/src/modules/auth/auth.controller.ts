@@ -33,7 +33,7 @@ export class AuthController {
   @Post('token')
   @HttpCode(200)
   issueToken(@Body() body: TokenRequestDto) {
-    return this.authService.verifyAndIssueToken(body.transaction);
+    return this.authService.verifyAndIssueToken(body.transaction, body.registration);
   }
 
   // POST /auth/refresh → JWT renovado (mismas claims)

@@ -32,22 +32,47 @@ const USER_TYPES = [
 
 type UserTypeId = (typeof USER_TYPES)[number]['id'];
 
+// ISO-3166 alpha-2 — foco LATAM + algunos comunes.
+const COUNTRIES = [
+  { code: 'AR', name: 'Argentina' },
+  { code: 'BO', name: 'Bolivia' },
+  { code: 'BR', name: 'Brasil' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'CR', name: 'Costa Rica' },
+  { code: 'EC', name: 'Ecuador' },
+  { code: 'SV', name: 'El Salvador' },
+  { code: 'GT', name: 'Guatemala' },
+  { code: 'HN', name: 'Honduras' },
+  { code: 'MX', name: 'México' },
+  { code: 'NI', name: 'Nicaragua' },
+  { code: 'PA', name: 'Panamá' },
+  { code: 'PY', name: 'Paraguay' },
+  { code: 'PE', name: 'Perú' },
+  { code: 'DO', name: 'República Dominicana' },
+  { code: 'UY', name: 'Uruguay' },
+  { code: 'VE', name: 'Venezuela' },
+  { code: 'ES', name: 'España' },
+  { code: 'US', name: 'Estados Unidos' },
+] as const;
+
 export default function RegisterPage() {
   const router = useRouter();
   const [orgName, setOrgName] = useState('');
+  const [country, setCountry] = useState('');
   const [userType, setUserType] = useState<UserTypeId>('admin');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orgName.trim()) return;
+    if (!orgName.trim() || !country) return;
     setError(null);
     setConnecting(true);
     try {
       const address = await connectWalletWithModal();
       if (!address) { setConnecting(false); return; }
-      await sep10Login(address);
+      await sep10Login(address, { orgName: orgName.trim(), country, role: userType });
       router.push('/dashboard');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : '';
@@ -111,6 +136,25 @@ export default function RegisterPage() {
               />
             </div>
 
+            {/* País de la organización */}
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300" htmlFor="country">
+                País
+              </label>
+              <select
+                id="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+                className="w-full px-4 py-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all text-sm font-medium"
+              >
+                <option value="" disabled>Selecciona un país</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Tipo de usuario */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
@@ -165,7 +209,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={connecting || !orgName.trim()}
+              disabled={connecting || !orgName.trim() || !country}
               className="w-full py-3 px-4 bg-[#0F52BA] hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm active:scale-[0.99] transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {connecting && (

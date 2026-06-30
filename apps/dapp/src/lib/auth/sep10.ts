@@ -27,7 +27,16 @@ export function syncJwtCookie(): void {
   else deleteJwtCookie();
 }
 
-export async function sep10Login(walletAddress: string): Promise<string> {
+export interface RegistrationData {
+  orgName?: string;
+  country?: string;
+  role?: string;
+}
+
+export async function sep10Login(
+  walletAddress: string,
+  registration?: RegistrationData,
+): Promise<string> {
   const challengeRes = await fetch(`${API}/auth/challenge?account=${walletAddress}`);
   if (!challengeRes.ok) throw new Error('Failed to get challenge');
   const { transaction, network_passphrase } = await challengeRes.json();
@@ -52,7 +61,7 @@ export async function sep10Login(walletAddress: string): Promise<string> {
   const tokenRes = await fetch(`${API}/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transaction: signedTxXdr }),
+    body: JSON.stringify({ transaction: signedTxXdr, registration }),
   });
   if (!tokenRes.ok) throw new Error('Failed to verify challenge');
   const { token } = await tokenRes.json();
