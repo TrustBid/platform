@@ -95,8 +95,12 @@ export interface DonationIntent {
   id: string;
   projectId: string;
   amountUsd: number;
-  status: 'pending' | 'confirmed' | 'failed';
+  status: 'pending' | 'submitted' | 'confirmed' | 'expired' | 'failed';
   /** Código de verificación on-chain (hash de la tx) una vez confirmada. */
   verificationCode: string | null;
+  /** Link SEP-7 para pagar desde wallet cuando no se firmó on-chain. */
+  sep7Link?: string | null;
+  /** Memo de la transacción (PAY-YYYY-NNNN). */
+  memoId?: string | null;
   createdAt: string;
 }

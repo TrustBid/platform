@@ -44,12 +44,6 @@ const PIPELINE_TEMPLATES = [
   { id: 'p3', name: 'Programa por hitos', description: 'Desembolsos atados a hitos verificados.', stages: ['Planificación', 'Hito 1', 'Hito 2', 'Hito 3', 'Cierre'] },
 ];
 
-const INTEGRATIONS = [
-  { id: 'i1', name: 'Stellar Testnet', description: 'Red de pruebas para anclaje on-chain.', connected: true },
-  { id: 'i2', name: 'USDC', description: 'Stablecoin para fondeo y desembolsos.', connected: true },
-  { id: 'i3', name: 'Email / SMTP', description: 'Notificaciones por correo a donantes.', connected: false },
-  { id: 'i4', name: 'WhatsApp API', description: 'Avisos y reportes por WhatsApp.', connected: false },
-];
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -390,7 +384,11 @@ function AreasTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Áreas</h2>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 transition-colors">
+        <Button
+          disabled
+          title="Próximamente"
+          className="bg-blue-600 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="h-4 w-4" />
           Nueva área
         </Button>
@@ -424,7 +422,11 @@ function PipelineTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Plantillas de pipeline</h2>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 transition-colors">
+        <Button
+          disabled
+          title="Próximamente"
+          className="bg-blue-600 text-white font-medium h-9 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Plus className="h-4 w-4" />
           Nueva plantilla
         </Button>
@@ -464,38 +466,83 @@ function PipelineTab() {
 }
 
 /* ---------- INTEGRACIONES ---------- */
+type IntegrationItem = {
+  id: string;
+  name: string;
+  description: string;
+  connected: boolean;
+  detail: string | null;
+  walletAddress: string | null;
+};
+
 function IntegrationsTab() {
+  const [items, setItems] = useState<IntegrationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API}/my/org/settings/integrations`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(setItems)
+      .catch(() => {
+        // Fallback a datos estáticos si el endpoint falla
+        setItems([
+          { id: 'stellar', name: 'Stellar Testnet', description: 'Red de pruebas para anclaje on-chain.', connected: false, detail: 'No disponible', walletAddress: null },
+          { id: 'usdc', name: 'USDC', description: 'Stablecoin para fondeo y desembolsos.', connected: false, detail: null, walletAddress: null },
+          { id: 'email', name: 'Email / SMTP', description: 'Notificaciones por correo a donantes.', connected: false, detail: null, walletAddress: null },
+          { id: 'whatsapp', name: 'WhatsApp API', description: 'Avisos y reportes por WhatsApp.', connected: false, detail: null, walletAddress: null },
+        ]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Integraciones</h2>
 
-      <div className="space-y-3">
-        {INTEGRATIONS.map((it) => (
-          <Card key={it.id} className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
-            <CardContent className="flex items-center justify-between gap-4 p-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-zinc-100 text-blue-600 dark:bg-zinc-900 dark:text-blue-500 rounded-lg">
-                  <Plug className="h-5 w-5" />
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((it) => (
+            <Card key={it.id} className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
+              <CardContent className="flex items-center justify-between gap-4 p-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-zinc-100 text-blue-600 dark:bg-zinc-900 dark:text-blue-500 rounded-lg">
+                    <Plug className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-zinc-900 dark:text-white">{it.name}</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400">{it.description}</p>
+                    {it.detail && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">{it.detail}</p>
+                    )}
+                    {it.walletAddress && (
+                      <p className="font-mono text-[10px] text-zinc-400 dark:text-zinc-600 mt-0.5 break-all">{it.walletAddress}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-zinc-900 dark:text-white">{it.name}</p>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400">{it.description}</p>
-                </div>
-              </div>
-              {it.connected ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Conectado
-                </span>
-              ) : (
-                <Button variant="outline" className="h-9 px-4 border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                  Conectar
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                {it.connected ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-400 shrink-0">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Conectado
+                  </span>
+                ) : (
+                  <Button
+                    disabled
+                    variant="outline"
+                    title="Próximamente"
+                    className="h-9 px-4 border-zinc-300 text-zinc-500 dark:border-zinc-700 dark:text-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  >
+                    Conectar
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -92,4 +92,10 @@ export class PublicController {
   createDonation(@Body() body: CreateDonationDto) {
     return this.publicService.createDonation(body);
   }
+
+  // GET /donations/:id
+  @Get('donations/:id')
+  getDonation(@Param('id', ParseUUIDPipe) id: string) {
+    return this.publicService.getDonation(id);
+  }
 }

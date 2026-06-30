@@ -2,10 +2,14 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import type { UpdateOrgDto } from './dto/update-org.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class OrgService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DB_POOL) private readonly pool: Pool,
+    private readonly config: ConfigService,
+  ) {}
 
   async getOrg(orgId: string) {
     const result = await this.pool.query<{
@@ -87,5 +91,85 @@ export class OrgService {
       lastLoginAt: r.last_login_at ? r.last_login_at.toISOString() : null,
       createdAt: r.created_at.toISOString(),
     }));
+  }
+
+  async getSettingsIntegrations(orgId: string) {
+    const orgResult = await this.pool.query<{
+      wallet_address: string | null;
+      stellar_network: string;
+    }>(
+      `SELECT wallet_address, stellar_network FROM organizations WHERE id = $1`,
+      [orgId],
+    );
+    const org = orgResult.rows[0];
+    if (!org) throw new NotFoundException({ code: 'not_found', message: 'Organization not found' });
+
+    const isMainnet = org.stellar_network === 'public';
+    const horizonBase = isMainnet
+      ? 'https://horizon.stellar.org'
+      : 'https://horizon-testnet.stellar.org';
+
+    let stellarConnected = false;
+    let xlmBalance: number | null = null;
+    let usdcBalance: number | null = null;
+
+    if (org.wallet_address) {
+      try {
+        const resp = await fetch(`${horizonBase}/accounts/${org.wallet_address}`);
+        if (resp.ok) {
+          const data = (await resp.json()) as {
+            balances: { asset_type: string; asset_code?: string; balance: string }[];
+          };
+          stellarConnected = true;
+          for (const b of data.balances) {
+            if (b.asset_type === 'native') xlmBalance = parseFloat(b.balance);
+            if (b.asset_code === 'USDC') usdcBalance = parseFloat(b.balance);
+          }
+        }
+      } catch {
+        // Horizon unreachable — mantiene stellarConnected = false
+      }
+    }
+
+    const networkLabel = isMainnet ? 'Stellar Mainnet' : 'Stellar Testnet';
+
+    return [
+      {
+        id: 'stellar',
+        name: networkLabel,
+        description: `Red ${isMainnet ? 'principal' : 'de pruebas'} para anclaje on-chain.`,
+        connected: stellarConnected,
+        detail: org.wallet_address
+          ? stellarConnected
+            ? `${xlmBalance?.toFixed(2) ?? '?'} XLM disponibles`
+            : 'Cuenta no encontrada en la red'
+          : 'Sin wallet configurada',
+        walletAddress: org.wallet_address ?? null,
+      },
+      {
+        id: 'usdc',
+        name: 'USDC',
+        description: 'Stablecoin para fondeo y desembolsos.',
+        connected: usdcBalance !== null,
+        detail: usdcBalance !== null ? `${usdcBalance.toFixed(2)} USDC` : 'Sin trustline USDC',
+        walletAddress: null,
+      },
+      {
+        id: 'email',
+        name: 'Email / SMTP',
+        description: 'Notificaciones por correo a donantes.',
+        connected: false,
+        detail: null,
+        walletAddress: null,
+      },
+      {
+        id: 'whatsapp',
+        name: 'WhatsApp API',
+        description: 'Avisos y reportes por WhatsApp.',
+        connected: false,
+        detail: null,
+        walletAddress: null,
+      },
+    ];
   }
 }

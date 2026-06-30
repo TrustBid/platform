@@ -39,6 +39,10 @@ export function fetchNgo(): Promise<NgoInfo> {
   return getJson<NgoInfo>('/api/public/ngo');
 }
 
+export function getDonationStatus(id: string): Promise<DonationIntent> {
+  return getJson<DonationIntent>(`/api/public/donate/${id}`);
+}
+
 export async function submitDonation(input: DonationInput): Promise<DonationIntent> {
   const res = await fetch('/api/public/donate', {
     method: 'POST',

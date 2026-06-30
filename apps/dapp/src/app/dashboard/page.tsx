@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { RecentProjects } from '@/components/ui/RecentProjects';
 import { RecentActivity } from '@/components/ui/RecentActivity';
+import { OnboardingNameModal } from '@/components/shared/OnboardingNameModal';
 import { MetricData, ActivityEvent } from '@/types/dashboard';
 import { useProjects } from '@/hooks/useProjects';
 import { useRecentActivity } from '@/hooks/useRecentActivity';
@@ -15,6 +16,11 @@ export default function DashboardPage() {
   const { projects, loading: loadingProjects } = useProjects();
   const { activity } = useRecentActivity();
   const { user } = useCurrentUser();
+
+  // I-18: mostrar modal de onboarding si el nombre es generado automáticamente
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const needsOnboarding = user !== null && /^Usuario [A-Za-z0-9]{8}/.test(user.name) && displayName === null;
+  const handleNameSaved = useCallback((name: string) => setDisplayName(name), []);
 
   const metrics: MetricData[] = useMemo(() => {
     const total = projects.length;
@@ -47,12 +53,15 @@ export default function DashboardPage() {
     [activity],
   );
 
+  const greeting = displayName ?? user?.name;
+
   return (
     <div className="min-h-screen bg-background text-foreground p-6 md:p-8 antialiased space-y-8">
+      {needsOnboarding && <OnboardingNameModal onSaved={handleNameSaved} />}
 
       <div className="space-y-1">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
-          {user ? `Hola, ${user.name.split(' ')[0]}` : 'Dashboard'}
+          {greeting ? `Hola, ${greeting.split(' ')[0]}` : 'Dashboard'}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">Resumen de la gestión de tus fondos</p>
       </div>

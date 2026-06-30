@@ -24,4 +24,9 @@ export class OrgController {
   listUsers(@CurrentOrg() orgId: string) {
     return this.orgService.listUsers(orgId);
   }
+
+  @Get('settings/integrations')
+  getSettingsIntegrations(@CurrentOrg() orgId: string) {
+    return this.orgService.getSettingsIntegrations(orgId);
+  }
 }

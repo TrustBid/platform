@@ -440,4 +440,35 @@ export class PublicService {
       createdAt: row.created_at.toISOString(),
     };
   }
+
+  // ── GET /donations/:id ───────────────────────────────────────────────────────
+
+  async getDonation(id: string) {
+    const result = await this.pool.query<{
+      id: string;
+      project_id: string;
+      amount: string;
+      tx_status: string;
+      tx_hash: string | null;
+      memo_id: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, project_id, amount, tx_status, tx_hash, memo_id, created_at
+       FROM transactions WHERE id = $1`,
+      [id],
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'Donation not found' });
+    }
+    const r = result.rows[0];
+    return {
+      id: r.id,
+      projectId: r.project_id,
+      amountUsd: Number(r.amount),
+      status: r.tx_status,
+      verificationCode: r.tx_hash ?? null,
+      memoId: r.memo_id ?? null,
+      createdAt: r.created_at.toISOString(),
+    };
+  }
 }
