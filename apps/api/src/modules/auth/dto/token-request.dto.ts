@@ -31,6 +31,12 @@ export class RegistrationDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  // id de wallet del Stellar Wallets Kit (freighter, albedo, xbull, …).
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  provider?: string;
 }
 
 export class TokenRequestDto {

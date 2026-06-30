@@ -33,11 +33,11 @@ export default function LoginPage() {
     setConnecting(true);
     try {
       setStep('signing');
-      const address = await connectWalletWithModal();
-      if (!address) { setConnecting(false); setStep('idle'); return; }
+      const conn = await connectWalletWithModal();
+      if (!conn) { setConnecting(false); setStep('idle'); return; }
 
       setStep('verifying');
-      await sep10Login(address);
+      await sep10Login(conn.address, { provider: conn.provider });
       router.push(getRedirectTarget());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';

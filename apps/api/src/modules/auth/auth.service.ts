@@ -31,6 +31,15 @@ interface RegistrationData {
   orgName?: string;
   country?: string;
   role?: string;
+  provider?: string;
+}
+
+// Valores válidos del enum wallet_provider (init-db + migración sprint5).
+const WALLET_PROVIDERS = new Set([
+  'freighter', 'albedo', 'custodial', 'xbull', 'rabet', 'lobstr', 'hana', 'hot-wallet',
+]);
+function toWalletProvider(id?: string): string {
+  return id && WALLET_PROVIDERS.has(id) ? id : 'freighter';
 }
 
 @Injectable()
@@ -278,6 +287,7 @@ export class AuthService {
       const orgName = registration?.orgName?.trim() || `Org ${walletAddress.slice(0, 8)}`;
       const country = (registration?.country ?? 'XX').toUpperCase();
       const role = registration?.role ?? 'admin';
+      const provider = toWalletProvider(registration?.provider);
 
       const orgResult = await client.query<{ id: string }>(
         `INSERT INTO organizations (name, slug, wallet_address, stellar_network, country)
@@ -306,8 +316,8 @@ export class AuthService {
 
       await client.query(
         `INSERT INTO user_wallets (user_id, organization_id, provider, public_key, is_primary)
-         VALUES ($1, $2, 'freighter', $3, true)`,
-        [user.id, orgId, walletAddress],
+         VALUES ($1, $2, $3, $4, true)`,
+        [user.id, orgId, provider, walletAddress],
       );
 
       await client.query('COMMIT');

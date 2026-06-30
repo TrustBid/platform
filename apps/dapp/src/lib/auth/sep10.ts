@@ -31,6 +31,7 @@ export interface RegistrationData {
   orgName?: string;
   country?: string;
   role?: string;
+  provider?: string;
 }
 
 export async function sep10Login(

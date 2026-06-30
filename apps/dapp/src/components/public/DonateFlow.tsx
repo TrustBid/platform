@@ -77,9 +77,9 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
     setWalletNote(null);
     setConnecting(true);
     try {
-      const address = await connectWalletWithModal();
-      if (address) {
-        setWallet(address);
+      const conn = await connectWalletWithModal();
+      if (conn) {
+        setWallet(conn.address);
         setStep(3);
       } else {
         setWalletNote(t('donate.walletError'));

@@ -70,9 +70,9 @@ export default function RegisterPage() {
     setError(null);
     setConnecting(true);
     try {
-      const address = await connectWalletWithModal();
-      if (!address) { setConnecting(false); return; }
-      await sep10Login(address, { orgName: orgName.trim(), country, role: userType });
+      const conn = await connectWalletWithModal();
+      if (!conn) { setConnecting(false); return; }
+      await sep10Login(conn.address, { orgName: orgName.trim(), country, role: userType, provider: conn.provider });
       router.push('/dashboard');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : '';
