@@ -2,6 +2,7 @@ import '@/app/globals.css';
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider"; // <-- Importamos tu nuevo proveedor
+import { PrivyClientProvider } from "@/components/privy-provider";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -30,7 +31,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <PrivyClientProvider>
+            {children}
+          </PrivyClientProvider>
         </ThemeProvider>
       </body>
     </html>

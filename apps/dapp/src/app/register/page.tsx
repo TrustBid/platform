@@ -9,6 +9,7 @@ import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
 import { sep10Login } from '@/lib/auth/sep10';
 import { COUNTRIES } from '@/lib/countries';
+import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
 
 const USER_TYPES = [
   {
@@ -198,6 +199,20 @@ export default function RegisterPage() {
               {connecting ? 'Conectando wallet…' : 'Registrarse con wallet Stellar'}
             </button>
           </form>
+
+          {/* Riel no-nativo cripto: registro con email/OTP (Privy) */}
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+            <span className="text-xs text-zinc-400">o</span>
+            <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+          <PrivyEmailLogin
+            registration={{
+              orgName: orgName.trim() || undefined,
+              country: country || undefined,
+              role: userType,
+            }}
+          />
 
           <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
             Compatible con Freighter, Albedo y otras wallets Stellar.<br />

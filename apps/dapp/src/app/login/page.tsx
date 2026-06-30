@@ -6,6 +6,7 @@ import Image from 'next/image';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
 import { getJwt, sep10Login, syncJwtCookie } from '@/lib/auth/sep10';
+import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
 
 // Destino tras el login. Solo rutas internas para evitar open-redirect.
 function getRedirectTarget(): string {
@@ -100,6 +101,14 @@ export default function LoginPage() {
             {walletError && (
               <p className="text-sm font-medium text-red-600 text-center">{walletError}</p>
             )}
+
+            {/* Riel no-nativo cripto: login con email/OTP (Privy) */}
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+              <span className="text-xs text-zinc-400">o</span>
+              <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+            </div>
+            <PrivyEmailLogin />
 
             <p className="text-xs text-zinc-400 text-center leading-relaxed">
               Freighter · Albedo · y más wallets Stellar compatibles.<br />
