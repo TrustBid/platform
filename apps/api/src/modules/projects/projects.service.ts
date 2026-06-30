@@ -121,13 +121,15 @@ export class ProjectsService {
       executed_at: Date | null;
       description: string | null;
     }>(
+      // Aliaseamos las columnas reales del esquema a los nombres que espera el front
+      // (la tabla usa tx_status / confirmed_at / concept, no status/executed_at/description).
       `SELECT t.id, t.memo_id, t.tx_hash, t.amount, t.asset_code,
-              t.status, t.executed_at, t.description
+              t.tx_status AS status, t.confirmed_at AS executed_at, t.concept AS description
        FROM transactions t
        JOIN projects p ON p.id = t.project_id
        WHERE t.project_id = $1
          AND p.organization_id = $2
-       ORDER BY t.executed_at DESC NULLS LAST, t.created_at DESC
+       ORDER BY t.confirmed_at DESC NULLS LAST, t.created_at DESC
        LIMIT 100`,
       [projectId, orgId],
     );
