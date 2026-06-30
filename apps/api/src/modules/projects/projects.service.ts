@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import type { CreateProjectDto } from './dto/create-project.dto';
+import type { UpdateProjectDto } from './dto/update-project.dto';
 
 @Injectable()
 export class ProjectsService {
@@ -64,6 +65,49 @@ export class ProjectsService {
     );
     if (!result.rows[0]) throw new NotFoundException({ code: 'not_found', message: 'Project not found' });
     return result.rows[0];
+  }
+
+  async update(id: string, orgId: string, dto: UpdateProjectDto) {
+    // Mapa columna → valor; solo se actualizan las claves presentes en el DTO.
+    // Los nombres de columna son literales (no input del usuario) → sin riesgo de inyección.
+    const columns: Record<string, unknown> = {
+      name: dto.name,
+      description: dto.description,
+      beneficiary: dto.beneficiary,
+      category: dto.category,
+      status: dto.status,
+      budget_amount: dto.budgetAmount,
+      budget_asset: dto.budgetAsset,
+      start_date: dto.startDate,
+      end_date: dto.endDate,
+      blockchain_enabled: dto.blockchainEnabled,
+    };
+
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    for (const [col, val] of Object.entries(columns)) {
+      if (val !== undefined) {
+        values.push(val);
+        setClauses.push(`${col} = $${values.length}`);
+      }
+    }
+
+    // Sin campos para actualizar → devolver el estado actual (también valida existencia/scope).
+    if (setClauses.length === 0) return this.getById(id, orgId);
+
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id, orgId);
+
+    const result = await this.pool.query(
+      `UPDATE projects
+         SET ${setClauses.join(', ')}
+       WHERE id = $${values.length - 1} AND organization_id = $${values.length}
+       RETURNING id`,
+      values,
+    );
+    if (!result.rows[0]) throw new NotFoundException({ code: 'not_found', message: 'Project not found' });
+
+    return this.getById(id, orgId);
   }
 
   async getTransactions(projectId: string, orgId: string) {
