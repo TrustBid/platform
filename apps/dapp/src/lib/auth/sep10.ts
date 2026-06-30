@@ -4,6 +4,28 @@ import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 const JWT_KEY = 'tb_jwt';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
+
+// El JWT vive en localStorage, pero el middleware (edge) solo ve cookies.
+// Espejamos el token en una cookie homónima para poder proteger /dashboard.
+function writeJwtCookie(token: string): void {
+  if (typeof document !== 'undefined') {
+    document.cookie = `${JWT_KEY}=${token}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  }
+}
+
+function deleteJwtCookie(): void {
+  if (typeof document !== 'undefined') {
+    document.cookie = `${JWT_KEY}=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
+
+/** Re-sincroniza la cookie desde localStorage (para sesiones previas a la cookie). */
+export function syncJwtCookie(): void {
+  const token = getJwt();
+  if (token) writeJwtCookie(token);
+  else deleteJwtCookie();
+}
 
 export async function sep10Login(walletAddress: string): Promise<string> {
   const challengeRes = await fetch(`${API}/auth/challenge?account=${walletAddress}`);
@@ -36,6 +58,7 @@ export async function sep10Login(walletAddress: string): Promise<string> {
   const { token } = await tokenRes.json();
 
   localStorage.setItem(JWT_KEY, token);
+  writeJwtCookie(token);
   return token;
 }
 
@@ -46,6 +69,7 @@ export function getJwt(): string | null {
 
 export function clearJwt(): void {
   if (typeof window !== 'undefined') localStorage.removeItem(JWT_KEY);
+  deleteJwtCookie();
 }
 
 export function authHeaders(): HeadersInit {

@@ -1,17 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
-import { sep10Login } from '@/lib/auth/sep10';
+import { getJwt, sep10Login, syncJwtCookie } from '@/lib/auth/sep10';
+
+// Destino tras el login. Solo rutas internas para evitar open-redirect.
+function getRedirectTarget(): string {
+  if (typeof window === 'undefined') return '/dashboard';
+  const r = new URLSearchParams(window.location.search).get('redirect');
+  return r && r.startsWith('/') && !r.startsWith('//') ? r : '/dashboard';
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const [walletError, setWalletError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [step, setStep] = useState<'idle' | 'signing' | 'verifying'>('idle');
+
+  // Si ya hay sesión (localStorage), espeja la cookie y entra directo.
+  useEffect(() => {
+    if (getJwt()) {
+      syncJwtCookie();
+      router.replace(getRedirectTarget());
+    }
+  }, [router]);
 
   const handleConnectWallet = async () => {
     setWalletError(null);
@@ -23,7 +38,7 @@ export default function LoginPage() {
 
       setStep('verifying');
       await sep10Login(address);
-      router.push('/dashboard');
+      router.push(getRedirectTarget());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'NETWORK_MISMATCH') {
