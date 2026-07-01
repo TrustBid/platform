@@ -387,14 +387,14 @@ export class PublicService {
       created_at: Date;
     }>(
       `INSERT INTO transactions
-         (organization_id, project_id, beneficiary, concept, amount, asset_code,
+         (organization_id, project_id, beneficiary, concept, category, amount, asset_code,
           memo_id, tx_status, tx_hash)
-       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, $6, $7)
+       VALUES ($1, $2, $3, 'Donación', 'donation', $4, 'USDC', $5, $6, $7)
        RETURNING id, project_id, amount, tx_status, tx_hash, created_at`,
       [
         project.organization_id,
         dto.projectId,
-        dto.walletAddress ?? null,
+        dto.walletAddress ?? 'Donante anónimo',
         dto.amountUsd,
         memoId,
         txStatus,
