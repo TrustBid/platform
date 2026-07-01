@@ -362,14 +362,13 @@ export class PublicService {
       });
     }
 
-    // PAY-YYYY-NNNN — counter per org + year (I-07)
+    // PAY-YYYY-NNNN — memo_id is globally unique, so the counter must be too (I-07)
     const year = new Date().getFullYear();
     const countResult = await this.pool.query<{ n: string }>(
       `SELECT COUNT(*) AS n
        FROM transactions
-       WHERE organization_id = $1
-         AND EXTRACT(YEAR FROM created_at) = $2`,
-      [project.organization_id, year],
+       WHERE EXTRACT(YEAR FROM created_at) = $1`,
+      [year],
     );
     const n = Number(countResult.rows[0]?.n ?? 0) + 1;
     const memoId = `PAY-${year}-${String(n).padStart(4, '0')}`;

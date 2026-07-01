@@ -38,4 +38,4 @@ Allow: /
 User-agent: Bytespider
 Allow: /
 
-Sitemap: https://trustbid.pages.dev/sitemap.xml
+Sitemap: https://trustbid-landing.pages.dev/sitemap.xml
