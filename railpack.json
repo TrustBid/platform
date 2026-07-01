@@ -3,7 +3,7 @@
   "provider": "node",
   "steps": {
     "build": {
-      "inputs": [{ "step": "install" }],
+      "inputs": [{ "step": "install" }, { "local": true }],
       "commands": ["npm run build --workspace=apps/api"]
     }
   },
