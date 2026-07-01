@@ -8,7 +8,7 @@ pub struct AnchoredExpense {
     pub project_id: Symbol,
     pub submitted_by: Address,
     pub amount_xlm: i128,
-    pub receipt_hash: Bytes, // SHA-256 del comprobante almacenado en R2
+    pub receipt_hash: Bytes, // SHA-256 hash of the receipt stored in R2
     pub anchored_at: u64,
 }
 
@@ -163,10 +163,10 @@ mod test {
         client.anchor(&admin, &expense_id, &project_id, &300_0000000, &hash);
 
         let events = env.events().all();
-        assert!(!events.is_empty(), "debe emitir al menos un evento");
+        assert!(!events.is_empty(), "must emit at least one event");
 
         let (_, topics, _) = events.last().unwrap();
-        // El primer tópico es el Symbol "expense_anchored"
+        // First topic is the "expense_anchored" Symbol
         let expected_topic: Symbol = Symbol::new(&env, "expense_anchored");
         assert_eq!(topics, vec![&env, expected_topic.into_val(&env)]);
     }
@@ -183,5 +183,29 @@ mod test {
 
         assert_eq!(client.get_expense(&symbol_short!("eA")).unwrap().submitted_by, caller_a);
         assert_eq!(client.get_expense(&symbol_short!("eB")).unwrap().submitted_by, caller_b);
+    }
+
+    #[test]
+    fn test_double_initialize_succeeds() {
+        let (_env, client, admin) = setup();
+        client.initialize(&admin);
+    }
+
+    #[test]
+    fn test_short_receipt_hash_accepted() {
+        let (env, client, admin) = setup();
+        let expense_id = symbol_short!("short");
+        let short_hash = Bytes::from_array(&env, &[0x01]);
+
+        client.anchor(
+            &admin,
+            &expense_id,
+            &symbol_short!("proj1"),
+            &100_0000000,
+            &short_hash,
+        );
+
+        let exp = client.get_expense(&expense_id).unwrap();
+        assert_eq!(exp.receipt_hash, short_hash);
     }
 }

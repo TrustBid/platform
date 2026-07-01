@@ -30,7 +30,9 @@ NestJS API (SorobanService)
                             get_badges(organization)
 ```
 
-Los tres contratos comparten el mismo keypair administrador (`STELLAR_SERVER_SECRET`). La API de NestJS actúa como único caller autorizado y envuelve cada operación en `SorobanService`.
+Los tres contratos comparten el mismo keypair administrador (`STELLAR_SERVER_SECRET`). La API de NestJS firma las transacciones con ese keypair y envuelve cada operación en `SorobanService`.
+
+> **Modelo de confianza:** on-chain registra el payload inmutable attestado por el **signer** de la transacción. La atribución de organización y usuario vive **off-chain** (Postgres). Ver [AUDIT.md](AUDIT.md) para detalles y limitaciones.
 
 **Flujo de negocio:**
 
@@ -52,25 +54,26 @@ Registra la asignación de fondos por proyecto. Un registro de auditoría inmuta
 
 ```
 DataKey::Allocation(Symbol) → FundAllocation {
-    project_id:   Symbol    // últimos 12 chars del UUID del proyecto
-    organization: Address   // wallet de la ONG
+    project_id:   Symbol    // últimos 12 chars del UUID del proyecto (convención backend)
+    organization: Address   // signer de la transacción (típicamente STELLAR_SERVER_SECRET)
     amount_xlm:   i128      // monto en stroops (1 XLM = 10_000_000)
     allocated_at: u64       // timestamp del ledger
 }
-Admin:            Address
+Admin:            Address   // metadata de deploy; no se usa como ACL en mutaciones
 ```
 
 **Funciones:**
 
 | Función | Requiere auth | Descripción |
 |---|---|---|
-| `initialize(admin)` | admin | Inicializa el contrato. Solo puede llamarse una vez. |
-| `allocate(caller, project_id, amount_xlm)` | caller | Registra o sobreescribe la asignación de un proyecto. |
+| `initialize(admin)` | admin | Inicializa el contrato. Puede llamarse múltiples veces (sobrescribe `Admin`). |
+| `allocate(caller, project_id, amount_xlm)` | caller | Registra o sobreescribe la asignación. `organization` = signer (`caller`). |
 | `get_allocation(project_id)` | — | Lectura de la asignación. Retorna `Option<FundAllocation>`. |
 
 **Notas:**
 - `allocate` puede llamarse varias veces sobre el mismo `project_id` (sobreescribe). Útil para reasignaciones presupuestarias.
-- `project_id` se trunca a 12 caracteres (limitación de `Symbol` en Soroban).
+- `project_id` usa los últimos 12 caracteres del UUID (convención backend). Riesgo de colisión si dos UUIDs comparten sufijo — ver [Limitaciones conocidas](#limitaciones-conocidas).
+- No emite eventos on-chain (gap documentado en [AUDIT.md](AUDIT.md)).
 
 ---
 
@@ -82,22 +85,22 @@ Ancla los gastos aprobados en cadena. Cada registro vincula un gasto con su comp
 
 ```
 DataKey::Expense(Symbol) → AnchoredExpense {
-    expense_id:   Symbol    // últimos 12 chars del UUID del gasto
+    expense_id:   Symbol    // últimos 12 chars del UUID del gasto (convención backend)
     project_id:   Symbol    // últimos 12 chars del UUID del proyecto
-    submitted_by: Address   // wallet del usuario que registró el gasto
+    submitted_by: Address   // signer de la transacción (típicamente STELLAR_SERVER_SECRET)
     amount_xlm:   i128      // monto en stroops
-    receipt_hash: Bytes     // SHA-256 (32 bytes) del comprobante en R2
+    receipt_hash: Bytes     // hash del comprobante en R2 (se espera SHA-256 de 32 bytes; no validado on-chain)
     anchored_at:  u64       // timestamp del ledger
 }
-Admin:            Address
+Admin:            Address   // metadata de deploy; no se usa como ACL en mutaciones
 ```
 
 **Funciones:**
 
 | Función | Requiere auth | Descripción |
 |---|---|---|
-| `initialize(admin)` | admin | Inicializa el contrato. |
-| `anchor(caller, expense_id, project_id, amount_xlm, receipt_hash)` | caller | Registra el gasto on-chain. |
+| `initialize(admin)` | admin | Inicializa el contrato. Puede llamarse múltiples veces (sobrescribe `Admin`). |
+| `anchor(caller, expense_id, project_id, amount_xlm, receipt_hash)` | caller | Registra el gasto. `submitted_by` = signer (`caller`). |
 | `get_expense(expense_id)` | — | Lectura del gasto. Retorna `Option<AnchoredExpense>`. |
 
 **Eventos emitidos:**
@@ -171,13 +174,13 @@ contracts/
 ├── contracts/
 │   ├── fund-tracker/
 │   │   ├── Cargo.toml
-│   │   └── src/lib.rs        # Contrato + 5 tests
+│   │   └── src/lib.rs        # Contrato + 7 tests
 │   ├── expense-anchor/
 │   │   ├── Cargo.toml
-│   │   └── src/lib.rs        # Contrato + 7 tests
+│   │   └── src/lib.rs        # Contrato + 9 tests
 │   └── sbt-badge/
 │       ├── Cargo.toml
-│       └── src/lib.rs        # Contrato + 15 tests
+│       └── src/lib.rs        # Contrato + 16 tests
 └── Cargo.toml                # Workspace Rust
 ```
 
@@ -268,6 +271,31 @@ Los IDs de los contratos desplegados se pasan al backend como variables de entor
 
 | Contrato | Tests | Casos cubiertos |
 |---|---|---|
-| `fund-tracker` | 5 | allocate + get, inexistente, reasignación, proyectos independientes, timestamp |
-| `expense-anchor` | 7 | anchor + get, inexistente, timestamp, gastos independientes, sobreescritura, evento, múltiples callers |
-| `sbt-badge` | 15 | IDs secuenciales, evento mint, datos correctos, inexistente, get_badges, org vacía, activos vs revocados, revoke timestamp, evento revoke, doble revoke panic, inexistente panic, tipos válidos, tipo inválido panic, aislamiento multi-org, doble initialize panic |
+| `fund-tracker` | 7 | allocate + get, inexistente, reasignación, proyectos independientes, timestamp, re-init, monto negativo |
+| `expense-anchor` | 9 | anchor + get, inexistente, timestamp, gastos independientes, sobreescritura, evento, múltiples callers, re-init, hash corto |
+| `sbt-badge` | 16 | IDs secuenciales, evento mint, datos correctos, inexistente, get_badges, org vacía, activos vs revocados, revoke timestamp, evento revoke, doble revoke panic, inexistente panic, tipos válidos, tipo inválido panic, aislamiento multi-org, doble initialize panic, re-mint duplicado |
+
+---
+
+## Limitaciones conocidas
+
+Documentación completa en [AUDIT.md](AUDIT.md). Resumen:
+
+1. **Atribución off-chain:** `organization` y `submitted_by` registran el signer de la transacción, no la ONG ni el usuario. Con `STELLAR_SERVER_SECRET` único, siempre será la wallet del servidor.
+2. **`Admin` sin ACL:** en `fund-tracker` y `expense-anchor`, `Admin` es metadata de deploy; cualquier dirección autenticada puede escribir.
+3. **Sin validación de inputs:** montos negativos/cero, hashes de longitud arbitraria y badges duplicados son aceptados hoy.
+4. **TTL / archival:** storage `persistent` sin `extend_ttl` puede archivarse según política de la red.
+5. **IDs de 12 chars:** convención backend sobre UUIDs; riesgo de colisión si no se garantiza unicidad del sufijo.
+6. **Sin eventos en `fund-tracker`:** indexadores deben hacer polling.
+
+---
+
+## Hardening futuro
+
+Backlog priorizado (requiere redeploy):
+
+1. Auth admin-proxy (`require_admin` + parámetro org/submitter explícito)
+2. `extend_ttl` en writes persistentes
+3. Eventos en `fund-tracker` + validación de inputs
+4. `initialize` idempotente en los tres contratos
+5. Validación cross-contract (gasto → proyecto existente)

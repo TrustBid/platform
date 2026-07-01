@@ -15,7 +15,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -26,8 +26,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install Stellar CLI
+        run: cargo install stellar-cli --version 22.0.1 --locked
+
       - name: Run tests
         run: cargo test --workspace
 
       - name: Build WASM (release)
-        run: cargo build --workspace --target wasm32-unknown-unknown --release
+        run: stellar contract build

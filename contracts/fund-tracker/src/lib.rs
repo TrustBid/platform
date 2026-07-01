@@ -120,4 +120,20 @@ mod test {
         let alloc = client.get_allocation(&project_id).unwrap();
         assert_eq!(alloc.allocated_at, 1_700_000_000);
     }
+
+    #[test]
+    fn test_double_initialize_succeeds() {
+        let (_env, client, admin) = setup();
+        client.initialize(&admin);
+    }
+
+    #[test]
+    fn test_negative_amount_accepted() {
+        let (_env, client, admin) = setup();
+        let project_id = symbol_short!("neg1");
+        client.allocate(&admin, &project_id, &-1);
+
+        let alloc = client.get_allocation(&project_id).unwrap();
+        assert_eq!(alloc.amount_xlm, -1);
+    }
 }

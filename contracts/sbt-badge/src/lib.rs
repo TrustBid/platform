@@ -21,7 +21,7 @@ pub struct Badge {
     pub organization: Address,
     pub status: BadgeStatus,
     pub issued_at: u64,
-    pub revoked_at: u64, // 0 cuando no ha sido revocado
+    pub revoked_at: u64, // 0 when not revoked
 }
 
 #[contracttype]
@@ -39,7 +39,7 @@ pub struct SbtBadge;
 
 #[contractimpl]
 impl SbtBadge {
-    /// Inicializa el contrato. Solo puede llamarse una vez.
+    /// Initializes the contract. Can only be called once.
     pub fn initialize(env: Env, admin: Address) {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("already_initialized");
@@ -49,8 +49,8 @@ impl SbtBadge {
         env.storage().instance().set(&DataKey::NextTokenId, &1u64);
     }
 
-    /// Emite un SBT de reputación a `organization`.
-    /// Solo el admin puede llamar esta función.
+    /// Mints a reputation SBT to `organization`.
+    /// Only the admin can call this function.
     pub fn mint_badge(env: Env, organization: Address, badge_type: Symbol) -> u64 {
         Self::require_admin(&env);
         Self::validate_badge_type(&env, &badge_type);
@@ -77,7 +77,7 @@ impl SbtBadge {
             .persistent()
             .set(&DataKey::BadgeById(token_id), &badge);
 
-        // Índice org → [token_ids]
+        // org → [token_ids] index
         let mut ids: Vec<u64> = env
             .storage()
             .persistent()
@@ -96,8 +96,8 @@ impl SbtBadge {
         token_id
     }
 
-    /// Revoca un badge. El registro original permanece en ledger con status=Revoked.
-    /// Solo el admin puede revocar.
+    /// Revokes a badge. The original record remains on ledger with status=Revoked.
+    /// Only the admin can revoke.
     pub fn revoke_badge(env: Env, token_id: u64) {
         Self::require_admin(&env);
 
@@ -125,14 +125,14 @@ impl SbtBadge {
         );
     }
 
-    /// Retorna un badge por token_id. None si no existe.
+    /// Returns a badge by token_id. None if it does not exist.
     pub fn get_badge(env: Env, token_id: u64) -> Option<Badge> {
         env.storage()
             .persistent()
             .get(&DataKey::BadgeById(token_id))
     }
 
-    /// Todos los badges (activos + revocados) de una organización.
+    /// All badges (active + revoked) for an organization.
     pub fn get_badges(env: Env, organization: Address) -> Vec<Badge> {
         let ids: Vec<u64> = env
             .storage()
@@ -149,7 +149,7 @@ impl SbtBadge {
         badges
     }
 
-    /// Solo los badges activos de una organización.
+    /// Only active badges for an organization.
     pub fn get_active_badges(env: Env, organization: Address) -> Vec<Badge> {
         let all = Self::get_badges(env.clone(), organization);
         let mut active = Vec::new(&env);
@@ -161,7 +161,7 @@ impl SbtBadge {
         active
     }
 
-    // ── Helpers privados ─────────────────────────────────────────────────────
+    // ── Private helpers ─────────────────────────────────────────────────────
 
     fn require_admin(env: &Env) {
         let admin: Address = env
@@ -296,7 +296,7 @@ mod test {
         let badge = client.get_badge(&id).unwrap();
         assert_eq!(badge.status, BadgeStatus::Revoked);
         assert_eq!(badge.revoked_at, 1_800_000_000);
-        assert_eq!(badge.issued_at, 1_700_000_000); // el campo original no cambia
+        assert_eq!(badge.issued_at, 1_700_000_000); // original field unchanged
     }
 
     #[test]
@@ -304,8 +304,8 @@ mod test {
         let (env, client, _admin) = setup();
         let org = Address::generate(&env);
         let id = client.mint_badge(&org, &Symbol::new(&env, "kyb_verified"));
-        // events().all() devuelve solo eventos de la última invocación;
-        // verificamos justo después de revoke que se emitió el evento.
+        // events().all() returns only events from the last invocation;
+        // verify right after revoke that the event was emitted.
         client.revoke_badge(&id);
         assert!(!env.events().all().is_empty());
     }
@@ -375,5 +375,18 @@ mod test {
         let (env, client, admin) = setup();
         let _ = &env;
         client.initialize(&admin);
+    }
+
+    #[test]
+    fn test_duplicate_badge_type_allowed() {
+        let (env, client, _admin) = setup();
+        let org = Address::generate(&env);
+        let bt = Symbol::new(&env, "kyb_verified");
+
+        let id1 = client.mint_badge(&org, &bt);
+        let id2 = client.mint_badge(&org, &bt);
+
+        assert_ne!(id1, id2);
+        assert_eq!(client.get_badges(&org).len(), 2);
     }
 }
