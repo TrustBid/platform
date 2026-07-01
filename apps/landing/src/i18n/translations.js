@@ -15,6 +15,7 @@ export const translations = {
       eyebrow: 'TRANSPARENCY INFRASTRUCTURE',
       titleLine1: 'Every fund',
       titleLine2: 'leaves a trace.',
+      cta: 'See Impact',
     },
     features: {
       title: 'Your reporting problem,',
@@ -162,6 +163,7 @@ export const translations = {
       eyebrow: 'INFRAESTRUCTURA DE TRANSPARENCIA',
       titleLine1: 'Cada fondo',
       titleLine2: 'deja una huella.',
+      cta: 'Ver impacto',
     },
     features: {
       title: 'Tu problema de reportes,',
