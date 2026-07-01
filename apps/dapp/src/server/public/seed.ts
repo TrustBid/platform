@@ -33,7 +33,7 @@ export const NGO: NgoInfo = {
 
 export const PROJECTS: Project[] = [
   {
-    id: 'escuela-san-pedro',
+    id: 'c1000000-0000-0000-0000-000000000001',
     name: 'Escuela San Pedro — Fase 1',
     category: 'Education',
     status: 'active',
@@ -89,7 +89,7 @@ export const PROJECTS: Project[] = [
     ],
   },
   {
-    id: 'agua-seguranca',
+    id: 'c1000000-0000-0000-0000-000000000002',
     name: 'Agua Segura — Comunidad Norte',
     category: 'Infrastructure',
     status: 'active',
@@ -135,7 +135,7 @@ export const PROJECTS: Project[] = [
     ],
   },
   {
-    id: 'salud-movil',
+    id: 'c1000000-0000-0000-0000-000000000003',
     name: 'Salud Móvil — Brigadas',
     category: 'Health',
     status: 'completed',

@@ -3,10 +3,11 @@ import { z } from 'zod';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 const schema = z.object({
-  projectId: z.string().min(1),
+  projectId: z.string().uuid(),
   amountUsd: z.number().positive().max(1_000_000),
   walletAddress: z.string().optional(),
   walletProvider: z.string().optional(),
+  txHash: z.string().optional(),
 });
 
 export async function POST(request: Request) {

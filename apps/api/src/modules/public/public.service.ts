@@ -4,15 +4,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Pool } from 'pg';
-import { randomUUID } from 'crypto';
 import { DB_POOL } from '../../database/database.module';
 import type { ProjectsQueryDto } from './dto/projects-query.dto';
 import type { CreateDonationDto } from './dto/create-donation.dto';
+import { HorizonWatcherService } from '../horizon/horizon-watcher.service';
+
+const DONATION_WATCH_WINDOW_MS = 30 * 60 * 1000; // 30 minutos
 
 @Injectable()
 export class PublicService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DB_POOL) private readonly pool: Pool,
+    private readonly config: ConfigService,
+    private readonly horizonWatcher: HorizonWatcherService,
+  ) {}
 
   // ── GET /ngo ─────────────────────────────────────────────────────────────────
 
@@ -158,6 +165,7 @@ export class PublicService {
           current_stage: string | null;
           beneficiaries_target: string;
           beneficiaries_reached: string;
+          recipient_address: string | null;
         }>(
           `SELECT
              p.id,
@@ -182,7 +190,12 @@ export class PublicService {
                SELECT SUM(b.count)
                FROM beneficiaries b
                WHERE b.project_id = p.id
-             ), 0) AS beneficiaries_reached
+             ), 0) AS beneficiaries_reached,
+             (
+               SELECT o.wallet_address
+               FROM organizations o
+               WHERE o.id = p.organization_id
+             ) AS recipient_address
            FROM projects p
            WHERE p.id = $1`,
           [id],
@@ -299,6 +312,7 @@ export class PublicService {
       beneficiariesTarget: Number(project.beneficiaries_target),
       beneficiariesReached: Number(project.beneficiaries_reached),
       currentStage: project.current_stage ?? '',
+      recipientAddress: project.recipient_address,
       pipeline,
       traceability,
       impact,
@@ -320,13 +334,17 @@ export class PublicService {
   // ── POST /donations ──────────────────────────────────────────────────────────
 
   async createDonation(dto: CreateDonationDto) {
-    // Resolve org from project
+    // Resolve org + wallet from project
     const projectResult = await this.pool.query<{
       id: string;
       organization_id: string;
       status: string;
+      org_wallet: string | null;
     }>(
-      `SELECT id, organization_id, status FROM projects WHERE id = $1`,
+      `SELECT p.id, p.organization_id, p.status, o.wallet_address AS org_wallet
+       FROM projects p
+       JOIN organizations o ON o.id = p.organization_id
+       WHERE p.id = $1`,
       [dto.projectId],
     );
 
@@ -344,7 +362,21 @@ export class PublicService {
       });
     }
 
-    const memoId = randomUUID();
+    // PAY-YYYY-NNNN — counter per org + year (I-07)
+    const year = new Date().getFullYear();
+    const countResult = await this.pool.query<{ n: string }>(
+      `SELECT COUNT(*) AS n
+       FROM transactions
+       WHERE organization_id = $1
+         AND EXTRACT(YEAR FROM created_at) = $2`,
+      [project.organization_id, year],
+    );
+    const n = Number(countResult.rows[0]?.n ?? 0) + 1;
+    const memoId = `PAY-${year}-${String(n).padStart(4, '0')}`;
+
+    // Si la donación se firmó on-chain (tx real en testnet), guardamos el hash.
+    const txHash = dto.txHash ?? null;
+    const txStatus = txHash ? 'submitted' : 'pending';
 
     const result = await this.pool.query<{
       id: string;
@@ -356,8 +388,8 @@ export class PublicService {
     }>(
       `INSERT INTO transactions
          (organization_id, project_id, beneficiary, concept, amount, asset_code,
-          memo_id, tx_status)
-       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, 'pending')
+          memo_id, tx_status, tx_hash)
+       VALUES ($1, $2, $3, 'Donación', $4, 'USDC', $5, $6, $7)
        RETURNING id, project_id, amount, tx_status, tx_hash, created_at`,
       [
         project.organization_id,
@@ -365,17 +397,78 @@ export class PublicService {
         dto.walletAddress ?? null,
         dto.amountUsd,
         memoId,
+        txStatus,
+        txHash,
       ],
     );
 
     const row = result.rows[0];
+
+    // SEP-7 payment link (I-10)
+    const isMainnet = this.config.get<string>('STELLAR_NETWORK') === 'public';
+    const usdcIssuer = isMainnet
+      ? 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+      : 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+    const destination = project.org_wallet ?? '';
+    const sep7Link = destination
+      ? `web+stellar:pay?destination=${destination}` +
+        `&amount=${dto.amountUsd}` +
+        `&asset_code=USDC` +
+        `&asset_issuer=${usdcIssuer}` +
+        `&memo=${memoId}` +
+        `&memo_type=text` +
+        `&msg=Donaci%C3%B3n+TrustBid`
+      : null;
+
+    // Si no vino con txHash (flujo SEP-7), vigilar Horizon para confirmar el pago
+    if (!txHash && destination) {
+      await this.horizonWatcher.watchDonation({
+        donationId: row.id,
+        memoId,
+        orgWallet: destination,
+        deadlineMs: Date.now() + DONATION_WATCH_WINDOW_MS,
+      });
+    }
+
     return {
       id: row.id,
       projectId: row.project_id,
       amountUsd: Number(row.amount),
-      status: 'pending',
-      verificationCode: null,
+      memoId,
+      sep7Link,
+      status: row.tx_status,
       createdAt: row.created_at.toISOString(),
+    };
+  }
+
+  // ── GET /donations/:id ───────────────────────────────────────────────────────
+
+  async getDonation(id: string) {
+    const result = await this.pool.query<{
+      id: string;
+      project_id: string;
+      amount: string;
+      tx_status: string;
+      tx_hash: string | null;
+      memo_id: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, project_id, amount, tx_status, tx_hash, memo_id, created_at
+       FROM transactions WHERE id = $1`,
+      [id],
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'Donation not found' });
+    }
+    const r = result.rows[0];
+    return {
+      id: r.id,
+      projectId: r.project_id,
+      amountUsd: Number(r.amount),
+      status: r.tx_status,
+      verificationCode: r.tx_hash ?? null,
+      memoId: r.memo_id ?? null,
+      createdAt: r.created_at.toISOString(),
     };
   }
 }

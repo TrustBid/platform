@@ -25,4 +25,9 @@ export class CreateDonationDto {
   @IsOptional()
   @IsString()
   walletProvider?: string;
+
+  // Hash de la tx Stellar real (testnet) cuando la donación se firmó on-chain.
+  @IsOptional()
+  @IsString()
+  txHash?: string;
 }

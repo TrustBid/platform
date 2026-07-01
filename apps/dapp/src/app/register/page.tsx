@@ -6,41 +6,16 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
-import { sep10Login, getJwt } from '@/lib/auth/sep10';
+import { sep10Login } from '@/lib/auth/sep10';
+import { COUNTRIES } from '@/lib/countries';
+import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 
-const COUNTRIES = [
-  { code: 'AR', name: 'Argentina' }, { code: 'BO', name: 'Bolivia' },
-  { code: 'BR', name: 'Brasil' },    { code: 'CL', name: 'Chile' },
-  { code: 'CO', name: 'Colombia' },  { code: 'CR', name: 'Costa Rica' },
-  { code: 'DO', name: 'República Dominicana' }, { code: 'EC', name: 'Ecuador' },
-  { code: 'SV', name: 'El Salvador' }, { code: 'GT', name: 'Guatemala' },
-  { code: 'HN', name: 'Honduras' },  { code: 'MX', name: 'México' },
-  { code: 'NI', name: 'Nicaragua' }, { code: 'PA', name: 'Panamá' },
-  { code: 'PY', name: 'Paraguay' },  { code: 'PE', name: 'Perú' },
-  { code: 'UY', name: 'Uruguay' },   { code: 'VE', name: 'Venezuela' },
-  { code: 'US', name: 'Estados Unidos' }, { code: 'ES', name: 'España' },
-  { code: 'GB', name: 'Reino Unido' }, { code: 'CA', name: 'Canadá' },
-  { code: 'DE', name: 'Alemania' },  { code: 'FR', name: 'Francia' },
-];
-
 const ROLES = [
-  {
-    id: 'admin',
-    label: 'Administrador',
-    desc: 'Gestiona proyectos, fondos y equipo.',
-  },
-  {
-    id: 'responsable',
-    label: 'Responsable de proyecto',
-    desc: 'Ejecuta y reporta el avance de proyectos.',
-  },
-  {
-    id: 'donante',
-    label: 'Donante / Verificador',
-    desc: 'Verifica el destino de fondos.',
-  },
+  { id: 'admin',        label: 'Administrador',            desc: 'Gestiona proyectos, fondos y equipo.' },
+  { id: 'responsable',  label: 'Responsable de proyecto',  desc: 'Ejecuta y reporta el avance de proyectos.' },
+  { id: 'donante',      label: 'Donante / Verificador',    desc: 'Verifica el destino de fondos.' },
 ] as const;
 
 type RoleId = (typeof ROLES)[number]['id'];
@@ -66,18 +41,9 @@ export default function RegisterPage() {
     setError(null);
     setConnecting(true);
     try {
-      const address = await connectWalletWithModal();
-      if (!address) { setConnecting(false); return; }
-
-      await sep10Login(address);
-
-      const jwt = getJwt();
-      await fetch(`${API}/my/organization`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
-        body: JSON.stringify({ name: orgName, country }),
-      });
-
+      const conn = await connectWalletWithModal();
+      if (!conn) { setConnecting(false); return; }
+      await sep10Login(conn.address, { orgName: orgName.trim(), country, role, provider: conn.provider });
       router.push('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
@@ -97,7 +63,7 @@ export default function RegisterPage() {
 
   return (
     <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-white">
-      {/* Left panel */}
+      {/* Panel izquierdo */}
       <div className="hidden md:flex relative w-full h-full bg-[#020817] select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
           <Image
@@ -115,7 +81,7 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* Panel derecho */}
       <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 overflow-y-auto">
         <div className="w-full max-w-sm space-y-7">
 
@@ -126,7 +92,6 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Org name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="orgName">
                 Nombre de la organización
@@ -142,7 +107,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Country */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="country">
                 País
@@ -166,7 +130,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Role */}
             <div className="space-y-1.5">
               <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Tu rol
@@ -220,7 +183,20 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <p className="text-xs text-gray-400 text-center leading-relaxed">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-zinc-200" />
+            <span className="text-xs text-zinc-400">o</span>
+            <span className="h-px flex-1 bg-zinc-200" />
+          </div>
+          <PrivyEmailLogin
+            registration={{
+              orgName: orgName.trim() || undefined,
+              country: country || undefined,
+              role,
+            }}
+          />
+
+          <p className="text-xs text-zinc-400 text-center leading-relaxed">
             Compatible con Freighter, Albedo y otras wallets Stellar.<br />
             Tus claves nunca salen de tu wallet.
           </p>

@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Layers, CheckCircle2, Clock, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Layers, CheckCircle2, Clock, ExternalLink, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
@@ -68,6 +69,28 @@ export default function ProjectDetailPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  async function handleStatusChange(newStatus: string) {
+    if (!project || newStatus === project.status) return;
+    setUpdatingStatus(true);
+    setStatusError(null);
+    try {
+      const res = await fetch(`${API}/my/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.status === 401) { router.push('/login'); return; }
+      if (!res.ok) throw new Error('error');
+      setProject(await res.json());
+    } catch {
+      setStatusError('No se pudo actualizar el estado.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -145,13 +168,6 @@ export default function ProjectDetailPage() {
           <div className="flex items-center gap-2 mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             <Layers className="h-3.5 w-3.5" />
             {CATEGORY_LABELS[project.category] ?? project.category}
-            {project.current_stage && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                <Clock className="h-3.5 w-3.5" />
-                {project.current_stage}
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -189,6 +205,40 @@ export default function ProjectDetailPage() {
               <div className="flex justify-between text-xs text-zinc-500">
                 <span>{spentAmount.toLocaleString('es-CO')} {project.budget_asset} gastados</span>
                 <span>{budgetAmount.toLocaleString('es-CO')} {project.budget_asset} total</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Etapa del pipeline */}
+          <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">Etapa del pipeline</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Etapa actual</p>
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      {project.current_stage ?? 'Sin etapa asignada'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    size="sm"
+                    disabled
+                    title="Disponible próximamente"
+                    className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Avanzar etapa
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="text-[11px] text-zinc-400">Disponible próximamente</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -260,6 +310,27 @@ export default function ProjectDetailPage() {
 
         {/* Columna derecha — metadata */}
         <div className="space-y-4">
+
+          {/* Estado del proyecto */}
+          <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">Estado del proyecto</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              <Select value={project.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
+                <SelectTrigger className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100">
+                  {Object.entries(STATUS_CONFIG).map(([value, cfg]) => (
+                    <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {statusError && <p className="text-xs text-red-600 dark:text-red-400">{statusError}</p>}
+            </CardContent>
+          </Card>
+
           <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
             <CardContent className="p-5 space-y-4">
               {project.beneficiary && (

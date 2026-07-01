@@ -10,7 +10,9 @@ export interface ProjectItem {
   id: string;
   name: string;
   status: string;
-  budget: string;
+  budgetAmount: number;
+  spentAmount: number;
+  budgetAsset: string;
 }
 
 export interface ActivityEvent {

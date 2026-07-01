@@ -3,6 +3,8 @@
 import patternBg from "../assets/Layer.webp";
 import { useI18n } from "../i18n/LanguageContext";
 
+const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app';
+
 export default function TrustLayer() {
   const { t } = useI18n();
   const d = t.trustLayer.dashboard;
@@ -283,6 +285,43 @@ export default function TrustLayer() {
           >
             {t.trustLayer.paragraph2}
           </p>
+
+          <a
+            href={`${DAPP_BASE}/public/projects`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="
+              inline-flex
+              items-center
+              gap-2
+              mt-8
+              px-6
+              py-3
+              rounded-full
+              text-sm
+              font-semibold
+              text-white
+              bg-[#0F52BA]
+              hover:bg-[#0B45A0]
+              transition-colors
+              shadow-md
+              shadow-blue-500/20
+            "
+          >
+            {t.trustLayer.ctaProjects}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
         </div>
       </div>
     </section>

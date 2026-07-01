@@ -1,12 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import elipseBg from '@/assets/Elipse.jpg';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
-import { sep10Login } from '@/lib/auth/sep10';
+import { getJwt, sep10Login, syncJwtCookie } from '@/lib/auth/sep10';
+import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
+
+function getRedirectTarget(): string {
+  if (typeof window === 'undefined') return '/dashboard';
+  const r = new URLSearchParams(window.location.search).get('redirect');
+  return r && r.startsWith('/') && !r.startsWith('//') ? r : '/dashboard';
+}
 
 type Step = 'idle' | 'signing' | 'verifying';
 
@@ -18,21 +25,28 @@ const STEP_LABEL: Record<Step, string> = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep]           = useState<Step>('idle');
+  const [step, setStep]             = useState<Step>('idle');
   const [connecting, setConnecting] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+
+  useEffect(() => {
+    if (getJwt()) {
+      syncJwtCookie();
+      router.replace(getRedirectTarget());
+    }
+  }, [router]);
 
   const handleConnect = async () => {
     setError(null);
     setConnecting(true);
     try {
       setStep('signing');
-      const address = await connectWalletWithModal();
-      if (!address) { setConnecting(false); setStep('idle'); return; }
+      const conn = await connectWalletWithModal();
+      if (!conn) { setConnecting(false); setStep('idle'); return; }
 
       setStep('verifying');
-      await sep10Login(address);
-      router.push('/dashboard');
+      await sep10Login(conn.address, { provider: conn.provider });
+      router.push(getRedirectTarget());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'NETWORK_MISMATCH') {
@@ -52,7 +66,7 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-white">
-      {/* Left panel */}
+      {/* Panel izquierdo */}
       <div className="hidden md:flex relative w-full h-full bg-[#020817] select-none items-center justify-center p-12">
         <div className="relative w-full h-full flex flex-col items-center justify-center max-w-lg">
           <Image
@@ -70,7 +84,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* Panel derecho */}
       <div className="flex items-center justify-center bg-white p-8 sm:p-12 md:p-16 overflow-y-auto">
         <div className="w-full max-w-sm space-y-8">
 
@@ -80,7 +94,6 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-4">
-            {/* Wallet info card */}
             <div className="rounded-2xl bg-gray-50 border border-gray-100 p-5 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-[#0F52BA]/10 flex items-center justify-center flex-shrink-0">
@@ -126,8 +139,16 @@ export default function LoginPage() {
               </p>
             )}
 
-            <p className="text-xs text-gray-400 text-center leading-relaxed">
-              Compatible con Freighter, Albedo y otras wallets Stellar.
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-zinc-200" />
+              <span className="text-xs text-zinc-400">o</span>
+              <span className="h-px flex-1 bg-zinc-200" />
+            </div>
+            <PrivyEmailLogin />
+
+            <p className="text-xs text-zinc-400 text-center leading-relaxed">
+              Freighter · Albedo · y más wallets Stellar compatibles.<br />
+              El challenge SEP-10 se firma localmente — tus claves nunca salen de tu wallet.
             </p>
           </div>
 

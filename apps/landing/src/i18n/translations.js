@@ -42,6 +42,7 @@ export const translations = {
       headingPost: ' layer for social funds',
       paragraph1: 'TrustBid helps organizations track how funds are used with verifiable traceability and real-time reporting.',
       paragraph2: 'Instead of relying on fragmented records and manual reports, teams can document transactions once and generate audit-ready reports faster.',
+      ctaProjects: 'Explore public projects',
     },
     howItWorks: {
       title: 'How It',
@@ -188,6 +189,7 @@ export const translations = {
       headingPost: ' para fondos sociales',
       paragraph1: 'TrustBid ayuda a las organizaciones a controlar cómo se usan los fondos con trazabilidad verificable y reportes en tiempo real.',
       paragraph2: 'En lugar de depender de registros fragmentados y reportes manuales, los equipos documentan cada transacción una sola vez y generan reportes auditables más rápido.',
+      ctaProjects: 'Explorar proyectos',
     },
     howItWorks: {
       title: 'Cómo',

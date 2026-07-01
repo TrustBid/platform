@@ -56,9 +56,24 @@ export async function connectWallet(provider: WalletProvider): Promise<Connected
   return { address, provider };
 }
 
-/** Abre el modal del kit para elegir wallet (login del dashboard). Devuelve la address o null. */
-export async function connectWalletWithModal(): Promise<string | null> {
+export interface ModalConnection {
+  address: string;
+  /** id de la wallet elegida en el kit (freighter, albedo, xbull, lobstr, …). */
+  provider: string;
+}
+
+/** Abre el modal del kit para elegir wallet (login del dashboard). Devuelve address + provider, o null. */
+export async function connectWalletWithModal(): Promise<ModalConnection | null> {
   ensureInit();
   const { address } = await StellarWalletsKit.authModal();
-  return address ?? null;
+  if (!address) return null;
+
+  // Tras el modal, el módulo seleccionado queda activo en el kit.
+  let provider = 'freighter';
+  try {
+    provider = StellarWalletsKit.selectedModule?.productId ?? 'freighter';
+  } catch {
+    /* sin módulo seleccionado → fallback */
+  }
+  return { address, provider };
 }

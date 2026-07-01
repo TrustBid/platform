@@ -70,6 +70,8 @@ export interface ProjectSummary {
 export interface Project extends ProjectSummary {
   description: string;
   currency: string;
+  /** Dirección Stellar (testnet) de la org que recibe las donaciones. */
+  recipientAddress?: string | null;
   pipeline: PipelineStage[];
   traceability: TraceabilityEntry[];
   impact: ImpactIndicator[];
@@ -85,14 +87,20 @@ export interface DonationInput {
   amountUsd: number;
   walletAddress?: string;
   walletProvider?: string;
+  /** Hash de la tx Stellar real (testnet) si la donación se firmó on-chain. */
+  txHash?: string;
 }
 
 export interface DonationIntent {
   id: string;
   projectId: string;
   amountUsd: number;
-  status: 'pending' | 'confirmed' | 'failed';
+  status: 'pending' | 'submitted' | 'confirmed' | 'expired' | 'failed';
   /** Código de verificación on-chain (hash de la tx) una vez confirmada. */
   verificationCode: string | null;
+  /** Link SEP-7 para pagar desde wallet cuando no se firmó on-chain. */
+  sep7Link?: string | null;
+  /** Memo de la transacción (PAY-YYYY-NNNN). */
+  memoId?: string | null;
   createdAt: string;
 }

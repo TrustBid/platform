@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,6 +10,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  Copy,
   ExternalLink,
   Loader2,
   Wallet,
@@ -21,9 +22,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { formatUsd } from '@/lib/format';
 import { explorerTxUrl, shortCode } from '@/lib/stellar-explorer';
-import { submitDonation } from '@/lib/api/public';
+import { submitDonation, getDonationStatus } from '@/lib/api/public';
 import { useLanguage } from '@/lib/i18n/LanguageProvider';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
+import { WalletKitSigner } from '@/lib/stellar/walletKitSigner';
+import { StellarClient, XLM } from '@trustbid/stellar-sdk';
 import type { DonationIntent } from '@/types/public';
 
 const PRESETS = [50, 100, 500];
@@ -32,7 +35,14 @@ const PRESETS = [50, 100, 500];
 const amountSchema = z.object({ amountUsd: z.coerce.number().positive().max(1_000_000) });
 type AmountForm = z.input<typeof amountSchema>;
 
-type ProjectLite = { id: string; name: string; currency: string; category: string };
+type ProjectLite = {
+  id: string;
+  name: string;
+  currency: string;
+  category: string;
+  /** Dirección Stellar (testnet) de la org que recibe la donación. */
+  recipientAddress: string | null;
+};
 
 export function DonateFlow({ project }: { project: ProjectLite }) {
   const { t } = useLanguage();
@@ -44,6 +54,8 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [intent, setIntent] = useState<DonationIntent | null>(null);
+  const [copied, setCopied] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const localizedSchema = useMemo(
     () =>
@@ -61,6 +73,23 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
     defaultValues: { amountUsd: '' as unknown as number },
   });
 
+  // I-19: polling del estado de confirmación cuando la donación es SEP-7 (sin txHash)
+  useEffect(() => {
+    if (step !== 4 || !intent || intent.verificationCode || !intent.sep7Link) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const updated = await getDonationStatus(intent.id);
+        if (updated.verificationCode || updated.status === 'confirmed' || updated.status === 'expired') {
+          setIntent(updated);
+          clearInterval(pollRef.current!);
+        }
+      } catch { /* silencioso */ }
+    }, 10_000);
+
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [step, intent]);
+
   const STEPS = [
     t('donate.steps.amount'),
     t('donate.steps.wallet'),
@@ -77,9 +106,9 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
     setWalletNote(null);
     setConnecting(true);
     try {
-      const address = await connectWalletWithModal();
-      if (address) {
-        setWallet(address);
+      const conn = await connectWalletWithModal();
+      if (conn) {
+        setWallet(conn.address);
         setStep(3);
       } else {
         setWalletNote(t('donate.walletError'));
@@ -95,15 +124,52 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const result = await submitDonation({
-        projectId: project.id,
-        amountUsd: amount,
-        walletAddress: wallet ?? undefined,
+      if (!wallet) throw new Error('NO_WALLET');
+      if (!project.recipientAddress) throw new Error('NO_RECIPIENT');
+
+      // Pago REAL en Stellar testnet: donante → dirección de la org.
+      const client = new StellarClient('testnet');
+      // Si la cuenta del donante no existe aún en testnet, la fondeamos (friendbot).
+      if (!(await client.accountExists(wallet))) {
+        await client.fundTestnet(wallet);
+      }
+      const signer = new WalletKitSigner(wallet, client.config.networkPassphrase);
+      const res = await client.executePayment(signer, {
+        destination: project.recipientAddress,
+        asset: XLM,
+        amount: String(amount),
       });
-      setIntent(result);
+      const txHash = res.hash;
+
+      // Registrar la donación con el hash real (best-effort: el pago ya ocurrió).
+      let result: DonationIntent;
+      try {
+        result = await submitDonation({
+          projectId: project.id,
+          amountUsd: amount,
+          walletAddress: wallet,
+          txHash,
+        });
+      } catch {
+        result = {
+          id: txHash,
+          projectId: project.id,
+          amountUsd: amount,
+          status: 'pending',
+          verificationCode: txHash,
+          createdAt: new Date().toISOString(),
+        };
+      }
+      setIntent(result.verificationCode ? result : { ...result, verificationCode: txHash });
       setStep(4);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : t('donate.submitError'));
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'NO_WALLET') setSubmitError('Conectá tu wallet antes de confirmar.');
+      else if (msg === 'NO_RECIPIENT') setSubmitError('Este proyecto no tiene dirección de recepción configurada.');
+      else if (msg.toLowerCase().includes('reject') || msg.toLowerCase().includes('denied')) setSubmitError('Firma cancelada en la wallet.');
+      else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('mainnet')) setSubmitError('Tu wallet está en Mainnet. Cambiá a Testnet para donar en la demo.');
+      else if (msg.includes('destination') || msg.includes('op_no_destination')) setSubmitError('La cuenta receptora de la org no existe en testnet todavía.');
+      else setSubmitError(t('donate.submitError'));
     } finally {
       setSubmitting(false);
     }
@@ -272,15 +338,50 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
         {/* STEP 4 — Success */}
         {step === 4 && intent && (
           <div className="space-y-5 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40">
-              <CheckCircle2 className="h-7 w-7" />
+            <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${intent.status === 'confirmed' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40' : 'bg-amber-100 text-amber-600 dark:bg-amber-950/40'}`}>
+              {intent.status === 'confirmed'
+                ? <CheckCircle2 className="h-7 w-7" />
+                : <Clock className="h-7 w-7" />
+              }
             </div>
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">{t('donate.successTitle')}</h3>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
+                {intent.status === 'confirmed' ? t('donate.successTitle') : 'Donación registrada'}
+              </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 {formatUsd(intent.amountUsd)} {t('donate.successFor')} {project.name}.
               </p>
             </div>
+
+            {/* Link SEP-7 para pagar desde wallet (flujo sin firma on-chain) */}
+            {intent.sep7Link && !intent.verificationCode && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 p-4 text-left space-y-3">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 uppercase tracking-wide">
+                  Pagar con wallet Stellar
+                </p>
+                <a
+                  href={intent.sep7Link}
+                  className="block w-full py-2.5 text-center text-sm font-semibold text-white bg-[#0F52BA] hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  Abrir en mi wallet
+                </a>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(intent.sep7Link!); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                  className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copied ? 'Copiado' : 'Copiar link'}
+                </button>
+                <p className="text-xs text-zinc-500">
+                  Memo: <span className="font-mono">{intent.memoId}</span>
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+                  Confirmando pago automáticamente…
+                </p>
+              </div>
+            )}
 
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-left text-sm">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
