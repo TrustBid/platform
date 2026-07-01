@@ -3,6 +3,7 @@
   "provider": "node",
   "steps": {
     "install": {
+      "inputs": [{ "local": true }],
       "commands": ["npm install"]
     },
     "build": {
