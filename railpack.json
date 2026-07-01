@@ -2,12 +2,13 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
-    "build": {
-      "inputs": [{ "step": "install" }, { "local": true }],
-      "commands": ["npm run build --workspace=apps/api"]
+    "setup": {
+      "inputs": [{ "local": true }],
+      "commands": ["npm install", "npm run build --workspace=apps/api"]
     }
   },
   "deploy": {
-    "startCommand": "node apps/api/dist/main.js"
+    "startCommand": "node apps/api/dist/main.js",
+    "inputs": [{ "step": "setup" }]
   }
 }
