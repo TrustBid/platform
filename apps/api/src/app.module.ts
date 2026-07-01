@@ -6,7 +6,6 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PublicModule } from './modules/public/public.module';
 import { ProjectsModule } from './modules/projects/projects.module';
-import { OrgModule } from './modules/org/org.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { HorizonWatcherModule } from './modules/horizon/horizon-watcher.module';
@@ -20,7 +19,6 @@ import { RolesGuard } from './common/guards/roles.guard';
     AuthModule,
     PublicModule,
     ProjectsModule,
-    OrgModule,
     ReportsModule,
     OrganizationsModule,
     HorizonWatcherModule,
