@@ -2,11 +2,12 @@
   "$schema": "https://schema.railpack.com",
   "provider": "node",
   "steps": {
+    "install": {
+      "inputs": ["."],
+      "commands": ["npm install"]
+    },
     "build": {
-      "inputs": [
-        { "step": "install" },
-        { "local": true, "include": ["."] }
-      ],
+      "inputs": ["..."],
       "commands": ["npm run build --workspace=apps/api"]
     }
   },
