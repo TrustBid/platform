@@ -1,0 +1,38 @@
+# TrustBid
+
+> TrustBid is a transparency and traceability layer for social funds. NGOs and social organizations record how funds are allocated and spent, and TrustBid generates verifiable, donor-ready reports — anchored to the Stellar blockchain, with no crypto knowledge required from the user.
+
+TrustBid replaces fragmented spreadsheets and manual Excel reconciliation with a single system where every transaction is recorded once, reconciled automatically, and exported in seconds. Behind the scenes, an immutable audit trail (fund allocations, expense receipts, and organization reputation badges) is anchored on-chain via Soroban smart contracts on Stellar; end users never touch a wallet, keys, or crypto directly.
+
+## Product
+
+- **Who it's for:** NGOs, nonprofits, and social-impact organizations that need to prove to donors how funds were used.
+- **Core flow:** Allocate funds to a project → record transactions with context (who, what, why) → generate real-time, audit-ready reports automatically.
+- **On-chain layer (Stellar / Soroban):**
+  - `fund-tracker` — records how much is allocated per project.
+  - `expense-anchor` — anchors the SHA-256 hash of each approved expense receipt, so anyone can verify a receipt hasn't been altered.
+  - `sbt-badge` — issues non-transferable Soulbound Token badges (e.g. `kyb_verified`, `transparency_gold`) as on-chain reputation for verified, transparent organizations.
+- **Public transparency dashboard:** anyone can browse verified organizations and projects at the DApp's public route, without creating an account.
+
+## Pricing
+
+- **Basic** ($9.99/mo) — up to 5 projects, real-time dashboard, monthly reports, email support. Free trial included.
+- **Plus** ($14.99/mo) — up to 15 projects, multi-format reports, AI Transaction Guard, custom integrations.
+- **Enterprise** (custom pricing) — unlimited projects, API access, dedicated support, custom training.
+- Non-profit and international NGOs are eligible for a 30% discount.
+
+## Frequently asked questions
+
+- **Do I need to understand blockchain to use TrustBid?** No. Blockchain is invisible to the user — you record transactions and generate reports like in any other tool, while the audit trail is anchored to Stellar behind the scenes.
+- **Will TrustBid replace accounting software?** No — it's a transparency and traceability layer that complements existing accounting systems.
+- **Is data private?** Yes — sensitive identity details are kept off-chain; only the immutable payload (amounts, hashes, badges) is anchored publicly.
+
+## Docs
+
+- [Public documentation site](https://trustbid-docs-site.pages.dev)
+
+## Contact
+
+- LinkedIn: https://www.linkedin.com/company/trustbidapp/
+- X: https://x.com/TrustBidApp
+- Instagram: https://www.instagram.com/trustbid_/

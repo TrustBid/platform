@@ -12,6 +12,8 @@
     "@creit.tech/stellar-wallets-kit": "^2.5.0",
     "@hookform/resolvers": "^5.4.0",
     "@privy-io/react-auth": "^3.32.2",
+    "@stellar/stellar-sdk": "^16.0.1",
+    "@trustbid/stellar-sdk": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",

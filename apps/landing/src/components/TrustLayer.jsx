@@ -113,9 +113,9 @@ export default function TrustLayer() {
                 {/* HEADER */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-[13px] font-semibold">
+                    <p className="text-[13px] font-semibold">
                       {d.title}
-                    </h2>
+                    </p>
 
                     <p className="text-[9px] text-gray-400 mt-1">
                       {d.subtitle}

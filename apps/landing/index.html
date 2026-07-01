@@ -49,6 +49,100 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700&family=Rubik:wght@700;800&family=Nunito:wght@700;800&display=swap" rel="stylesheet" />
+
+    <!-- llms.txt — curated summary for AI/LLM crawlers -->
+    <link rel="llms.txt" href="/llms.txt" />
+
+    <!-- Structured data (GEO / rich results) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "TrustBid",
+        "url": "https://trustbid.pages.dev/",
+        "logo": "https://trustbid.pages.dev/favicon.svg",
+        "description": "TrustBid is a transparency and traceability layer for social funds, helping NGOs generate verifiable, donor-ready reports anchored to the Stellar network.",
+        "sameAs": [
+          "https://www.linkedin.com/company/trustbidapp/",
+          "https://x.com/TrustBidApp",
+          "https://www.instagram.com/trustbid_/"
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "TrustBid",
+        "url": "https://trustbid.pages.dev/",
+        "inLanguage": ["en", "es"]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TrustBid",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "url": "https://trustbid.pages.dev/",
+        "description": "Transparency and traceability layer for social funds. Record how funds are used and generate verifiable, donor-ready reports without manual Excel reconciliation, anchored to the Stellar network.",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Basic",
+            "price": "9.99",
+            "priceCurrency": "USD",
+            "description": "Up to 5 projects, real-time dashboard, monthly reports, email support."
+          },
+          {
+            "@type": "Offer",
+            "name": "Plus",
+            "price": "14.99",
+            "priceCurrency": "USD",
+            "description": "Up to 15 projects, multi-format reports, AI Transaction Guard, custom integrations."
+          },
+          {
+            "@type": "Offer",
+            "name": "Enterprise",
+            "priceSpecification": { "@type": "PriceSpecification", "description": "Custom pricing" },
+            "description": "Unlimited projects, API access, dedicated support, custom training."
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Do I need to understand blockchain to use TrustBid?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Blockchain is completely invisible to you. You record transactions, generate reports, and share dashboards — exactly like you would in any other tool. Behind the scenes, TrustBid anchors your audit trail to Stellar for verification, but you never interact with wallets, keys, or crypto. The only thing you'll notice is that your reports are now tamper-proof."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Will TrustBid replace my accounting software?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No, TrustBid acts as a transparency and traceability layer that complements existing accounting systems, making it easier to generate donor-ready reports without heavy manual Excel reconciliation."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What happens to my data? Is it private?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Data security and privacy are central to TrustBid's infrastructure. Financial transparency is handled with cryptographic proof, keeping sensitive identity details protected."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
