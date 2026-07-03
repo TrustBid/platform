@@ -142,7 +142,10 @@ export class ProjectsService {
     return result.rows;
   }
 
-  // Actividad reciente de la organización: últimas transacciones de todos los proyectos.
+  /**
+   * Get recent transactions across all organization projects.
+   * Returns latest transactions sorted by timestamp (most recent first).
+   */
   async getRecentActivity(orgId: string, limit = 10) {
     const result = await this.pool.query<{
       id: string;

@@ -1,5 +1,8 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // NestJS requires 'nodenext' for proper Node.js CommonJS/ESM interoperability
+    // Do not change to 'ESNext' without testing NestJS module resolution
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
