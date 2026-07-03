@@ -21,8 +21,9 @@ import { useCurrentUser, type CurrentUser } from '@/hooks/useCurrentUser';
 import { useOrg, useOrgUsers, type Organization } from '@/hooks/useOrg';
 import { authHeaders } from '@/lib/auth/sep10';
 import { COUNTRIES, countryName } from '@/lib/countries';
+import { API_URL } from '@/lib/config';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+const API = API_URL;
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',

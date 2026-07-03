@@ -9,8 +9,9 @@ import { connectWalletWithModal } from '@/lib/wallet/adapter';
 import { sep10Login } from '@/lib/auth/sep10';
 import { COUNTRIES } from '@/lib/countries';
 import { PrivyEmailLogin } from '@/components/PrivyEmailButton';
+import { API_URL } from '@/lib/config';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+const API = API_URL;
 
 const ROLES = [
   { id: 'admin',        label: 'Administrador',            desc: 'Gestiona proyectos, fondos y equipo.' },

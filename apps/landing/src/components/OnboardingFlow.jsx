@@ -8,7 +8,10 @@ const DAPP_REGISTER = import.meta.env.VITE_DAPP_URL
   ? `${import.meta.env.VITE_DAPP_URL}/register`
   : 'https://dapp-production-52e7.up.railway.app/register';
 
-const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || 'mdarorkz';
+const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || '';
+if (!FORMSPREE_ID) {
+  console.warn('⚠️ VITE_FORMSPREE_ID not configured - contact form will not work');
+}
 const ENDPOINT = `https://formspree.io/f/${FORMSPREE_ID}`;
 
 // ── Inline SVG icons ──────────────────────────────────────────────────────────

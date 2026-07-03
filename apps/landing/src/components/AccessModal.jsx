@@ -3,7 +3,10 @@ import { useI18n } from '../i18n/LanguageContext';
 import { ACCESS_EVENT } from '../lib/accessModal';
 import LogoNav from '../assets/LogoNav.webp';
 
-const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || 'mdarorkz';
+const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || '';
+if (!FORMSPREE_ID) {
+  console.warn('⚠️ VITE_FORMSPREE_ID not configured - contact form will not work');
+}
 const ENDPOINT = `https://formspree.io/f/${FORMSPREE_ID}`;
 const STORAGE_KEY = 'tb_access';
 

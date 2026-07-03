@@ -213,9 +213,9 @@ export class ProjectsService {
         `SELECT wallet_address FROM organizations WHERE id = $1`,
         [orgId],
       );
+      const serverPublicKey = this.configService.getOrThrow<string>('STELLAR_SERVER_PUBLIC_KEY');
       const callerPublicKey =
-        orgRow.rows[0]?.wallet_address ??
-        (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
+        orgRow.rows[0]?.wallet_address ?? serverPublicKey;
 
       const txHash = await this.soroban.allocateFunds(
         project.id,

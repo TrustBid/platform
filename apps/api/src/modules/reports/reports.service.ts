@@ -102,7 +102,7 @@ export class ReportsService {
       .update(`${reportId}:${dto.projectId}:${dto.title}:${dto.fundsUsedAmount ?? 0}:${dto.periodStart}:${dto.periodEnd}`)
       .digest('hex');
 
-    const serverPubKey = process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
+    const serverPubKey = this.configService.getOrThrow<string>('STELLAR_SERVER_PUBLIC_KEY');
     const amountXlm = Number(dto.fundsUsedAmount ?? 0);
 
     // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
