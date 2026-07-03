@@ -1,7 +1,13 @@
 {
   "name": "trustbid-platform",
   "version": "0.0.1",
+  "description": "TrustBid Platform — fund transparency & traceability for NGOs on Stellar blockchain",
+  "author": "TrustBid Team",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TrustBid/platform"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

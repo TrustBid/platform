@@ -1,6 +1,8 @@
+import { API_URL } from '@/lib/config';
+
 export const runtime = 'edge';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+const API = API_URL;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

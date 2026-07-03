@@ -102,10 +102,22 @@ export class ReportsService {
       .update(`${reportId}:${dto.projectId}:${dto.title}:${dto.fundsUsedAmount ?? 0}:${dto.periodStart}:${dto.periodEnd}`)
       .digest('hex');
 
-    const serverPubKey = process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
+    const serverPubKey = this.configService.getOrThrow<string>('STELLAR_SERVER_PUBLIC_KEY');
     const amountXlm = Number(dto.fundsUsedAmount ?? 0);
 
-    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
+    /**
+     * Fire-and-forget async anchor to Soroban (best-effort).
+     * 
+     * Design:
+     * - Report is created and returned immediately (no await on Soroban)
+     * - Soroban anchor attempt runs in background
+     * - If successful: anchor_tx_hash is updated asynchronously
+     * - If failed: logged only; report still exists (no rollback)
+     * 
+     * This is intentional. Report creation is the source of truth, not blockchain.
+     * Use webhook/polling on anchor_tx_hash to verify on-chain status.
+     * TODO: implement exponential backoff retry for Soroban failures
+     */
     this.soroban
       .anchorExpense({
         expenseId: reportId,
@@ -123,7 +135,10 @@ export class ReportsService {
           this.logger.log(`Report ${reportId} anchored on-chain tx=${txHash}`);
         }
       })
-      .catch((e) => this.logger.error('anchorExpense failed for report', e));
+      .catch((e) => {
+        this.logger.error(`anchorExpense failed for report ${reportId}:`, e);
+        // TODO: [GITHUB-XXX] Implement retry with exponential backoff
+      });
 
     return { id: reportId, createdAt: result.rows[0].created_at.toISOString() };
   }

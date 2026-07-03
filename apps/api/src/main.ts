@@ -7,7 +7,17 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowed = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
+  // Validar FRONTEND_URL en producción
+  const frontendUrl = process.env.FRONTEND_URL;
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  if (!frontendUrl && !isDev) {
+    const msg = '❌ FATAL: FRONTEND_URL must be configured in production for CORS';
+    console.error(msg);
+    throw new Error(msg);
+  }
+
+  const allowed = (frontendUrl ?? 'http://localhost:3000')
     .split(',')
     .map((u) => u.trim());
 
@@ -18,6 +28,8 @@ async function bootstrap() {
     },
     credentials: true,
   });
+
+  console.log(`✅ CORS enabled for: ${allowed.join(', ')}`);
 
   app.useGlobalPipes(
     new ValidationPipe({

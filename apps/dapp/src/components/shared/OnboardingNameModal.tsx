@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { authHeaders } from '@/lib/auth/sep10';
+import { API_URL } from '@/lib/config';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+const API = API_URL;
 
 interface Props {
   onSaved: (name: string) => void;
