@@ -17,8 +17,8 @@ export default function Hero() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navItems = [
-    { label: t.nav.howItWorks, href: '#how-it-works' },
     { label: t.nav.about, href: '#about' },
+    { label: t.nav.howItWorks, href: '#how-it-works' },
     { label: t.nav.contact, href: '#footer' },
   ];
 
