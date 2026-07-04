@@ -2,10 +2,6 @@
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ES2020"],
-    // Default module for monorepo. Overridden by workspace packages:
-    // - apps/api: "nodenext" (NestJS requires proper CJS/ESM interop)
-    // - apps/dapp: inherits ESNext (Next.js)
-    // - packages/*: inherits ESNext
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

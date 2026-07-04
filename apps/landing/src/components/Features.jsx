@@ -26,11 +26,11 @@ export default function Features() {
           <img 
             src={motionPattern} 
             alt="TrustBid Motion Pattern" 
-            className="w-full h-auto object-contain drop-shadow-2xl select-none pointer-events-none"
+            className="w-full h-auto object-contain select-none pointer-events-none"
           />
           
           {/* Text overlay with scrim for legibility over the pattern */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 rounded-3xl bg-black/30">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 rounded-3xl">
             <h3
               className="text-white select-none font-light leading-tight whitespace-pre-line"
               style={{ fontFamily: 'Inter', fontSize: 'clamp(28px, 6vw, 56px)' }}

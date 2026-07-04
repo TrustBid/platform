@@ -1,9 +1,8 @@
 'use client';
 
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
-import { API_URL } from '@/lib/config';
 
-const API = API_URL;
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 const JWT_KEY = 'tb_jwt';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
 

@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation';
 import { usePrivy, useLogin } from '@privy-io/react-auth';
 import { setSession } from '@/lib/auth/sep10';
 import { PRIVY_ENABLED } from './privy-provider';
-import { API_URL } from '@/lib/config';
 
-const API = API_URL;
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 
 interface RegistrationData {
   orgName?: string;
