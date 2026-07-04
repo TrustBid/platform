@@ -4,6 +4,7 @@ import TrustLayer from './components/TrustLayer';
 import HowItWorks from './components/HowItWorks';
 import FAQ from './components/FAQ';
 import Pricing from './components/Pricing';
+
 import Footer from './components/Footer';
 import AccessModal from './components/AccessModal';
 
@@ -16,6 +17,7 @@ function App() {
       <HowItWorks />
       <FAQ />
       <Pricing />
+      
       <Footer />
       <AccessModal />
     </div>
