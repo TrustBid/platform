@@ -2,21 +2,3 @@ name = "trustbid-dapp"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".open-next/assets"
-
-# Environment-specific configuration
-# Cloudflare: Set via Dashboard → Environment variables or wrangler secret
-# Local: Create .env.local file with NEXT_PUBLIC_* variables
-
-[env.development]
-# Local development defaults
-# vars = { ENVIRONMENT = "development" }
-
-[env.staging]
-# Staging environment
-# Configured via Cloudflare Pages environment variables
-# vars = { ENVIRONMENT = "staging" }
-
-[env.production]
-# Production environment - requires FRONTEND_URL validation in backend
-# vars = { ENVIRONMENT = "production" }
-# routes = { pattern = "*.trustbid.com", zone_name = "trustbid.com" }

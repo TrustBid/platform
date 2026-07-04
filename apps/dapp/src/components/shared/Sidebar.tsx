@@ -6,12 +6,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import trustBidLogo from '@/assets/ISO2_transp.jpg'
 import {
-  LayoutDashboard,
-  FolderOpen,
-  FileText,
-  Settings,
   LogOut,
-  Shield,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -29,10 +24,10 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 const navItems = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Projects', href: '/dashboard/projects', icon: FolderOpen },
-  { title: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { title: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { title: 'Dashboard', href: '/dashboard' },
+  { title: 'Projects', href: '/dashboard/projects' },
+  { title: 'Reports', href: '/dashboard/reports' },
+  { title: 'Settings', href: '/dashboard/settings' },
 ]
 
 interface AppSidebarProps {
@@ -62,9 +57,9 @@ export function AppSidebar({
 
   const netDot =
     netStatus === 'online'
-      ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+      ? 'bg-emerald-500'
       : netStatus === 'offline'
-        ? 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+        ? 'bg-red-500'
         : 'bg-amber-400 animate-pulse'
   const netLabel =
     netStatus === 'online' ? 'Red operativa' : netStatus === 'offline' ? 'Sin conexión a la red' : 'Verificando red…'
@@ -126,14 +121,13 @@ export function AppSidebar({
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      className={`w-full font-medium transition-all duration-200 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm ${
+                      className={`w-full font-medium transition-all duration-200 rounded-lg px-3.5 py-2.5 flex items-center text-sm ${
                         isActive
-                          ? 'bg-zinc-200/70 text-zinc-900 dark:bg-zinc-800/35 dark:text-zinc-200'
-                          : 'text-zinc-600 hover:bg-zinc-200/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
+                          ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 font-semibold'
+                          : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
                       }`}
                     >
                       <Link href={item.href}>
-                        <item.icon className={`h-4 w-4 ${isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`} />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -152,10 +146,9 @@ export function AppSidebar({
           <SidebarGroupContent className="mt-2">
             <SidebarMenu>
               <SidebarMenuItem>
-                <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-600 dark:text-zinc-400 text-sm" title={netLabel}>
-                  <Shield className="h-4 w-4 text-zinc-600 dark:text-zinc-500" />
-                  <span className="text-zinc-700 dark:text-zinc-300">Stellar Testnet</span>
-                  <span className={`ml-auto flex h-2 w-2 rounded-full ${netDot}`} />
+                <div className="flex items-center gap-2 px-3.5 py-2 text-zinc-600 dark:text-zinc-400 text-sm" title={netLabel}>
+                  <span className={`flex h-2 w-2 rounded-full ${netDot}`} />
+                  <span className="text-zinc-700 dark:text-zinc-300 font-medium">Stellar Testnet</span>
                 </div>
               </SidebarMenuItem>
             </SidebarMenu>

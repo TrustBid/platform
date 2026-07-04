@@ -142,10 +142,7 @@ export class ProjectsService {
     return result.rows;
   }
 
-  /**
-   * Get recent transactions across all organization projects.
-   * Returns latest transactions sorted by timestamp (most recent first).
-   */
+  // Actividad reciente de la organización: últimas transacciones de todos los proyectos.
   async getRecentActivity(orgId: string, limit = 10) {
     const result = await this.pool.query<{
       id: string;
@@ -216,9 +213,9 @@ export class ProjectsService {
         `SELECT wallet_address FROM organizations WHERE id = $1`,
         [orgId],
       );
-      const serverPublicKey = this.configService.getOrThrow<string>('STELLAR_SERVER_PUBLIC_KEY');
       const callerPublicKey =
-        orgRow.rows[0]?.wallet_address ?? serverPublicKey;
+        orgRow.rows[0]?.wallet_address ??
+        (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
 
       const txHash = await this.soroban.allocateFunds(
         project.id,
