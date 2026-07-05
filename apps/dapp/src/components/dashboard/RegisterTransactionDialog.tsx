@@ -4,12 +4,16 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  Banknote,
   Camera,
+  CheckCircle2,
   Download,
   FileWarning,
+  Link2,
   Plus,
   Sparkles,
   Upload,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -32,6 +36,7 @@ interface FormState {
   invoiceDate: string;
   invoiceNumber: string;
   taxId: string;
+  settlementType: 'on_chain' | 'cash';
 }
 
 const EMPTY_FORM: FormState = {
@@ -42,7 +47,15 @@ const EMPTY_FORM: FormState = {
   invoiceDate: '',
   invoiceNumber: '',
   taxId: '',
+  settlementType: 'on_chain',
 };
+
+/** Resultado de la extracción con IA del comprobante. */
+interface OcrResult {
+  enabled: boolean;
+  amount: number | null;
+  confidence: number | null;
+}
 
 export function RegisterTransactionDialog({
   projectId,
@@ -62,6 +75,7 @@ export function RegisterTransactionDialog({
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState<'idle' | 'processing' | 'done'>('idle');
+  const [ocr, setOcr] = useState<OcrResult | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,33 +87,75 @@ export function RegisterTransactionDialog({
     setFile(null);
     setPreviewUrl(null);
     setOcrStatus('idle');
+    setOcr(null);
     setForm(EMPTY_FORM);
     setError(null);
   };
+
+  // Compara en vivo el monto tipeado contra el detectado por la IA (tolerancia 1%).
+  const amountMatch: boolean | null =
+    ocr?.amount != null && Number(form.amount) > 0
+      ? Math.abs(ocr.amount - Number(form.amount)) <= Math.max(0.01, Number(form.amount) * 0.01)
+      : null;
 
   const openDialog = () => {
     resetAll();
     setOpen(true);
   };
 
-  function handleFile(selected: File | null) {
+  async function handleFile(selected: File | null) {
     if (!selected) return;
     setFile(selected);
     setPreviewUrl(URL.createObjectURL(selected));
     setOcrStatus('processing');
+    setOcr(null);
+    setError(null);
 
-    // OCR simulado: en un momento futuro esto llama a un servicio real de extracción.
-    // Los campos de texto se prellenan como ejemplo; el monto queda vacío a propósito
-    // para que el Contador lo tipee — ese valor es el que se ancla on-chain.
-    setTimeout(() => {
-      set({
-        beneficiary: 'Proveedor detectado por OCR',
-        invoiceDate: new Date().toISOString().slice(0, 10),
-        invoiceNumber: '',
-        taxId: '',
+    // OCR + extracción reales vía backend (Gemini). Prellena los campos detectados;
+    // el monto queda editable para que el Contador lo confirme/corrija.
+    try {
+      const fd = new FormData();
+      fd.set('file', selected);
+      const res = await fetch(`${API}/my/projects/${projectId}/transactions/ocr`, {
+        method: 'POST',
+        headers: { ...authHeaders() },
+        body: fd,
       });
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (!res.ok) throw new Error('ocr_failed');
+
+      const data: {
+        enabled: boolean;
+        extraction: {
+          vendor: string | null;
+          amount: number | null;
+          invoiceDate: string | null;
+          invoiceNumber: string | null;
+          taxId: string | null;
+          confidence: number | null;
+        } | null;
+      } = await res.json();
+
+      const ex = data.extraction;
+      if (ex) {
+        set({
+          beneficiary: ex.vendor ?? '',
+          invoiceDate: ex.invoiceDate ?? '',
+          invoiceNumber: ex.invoiceNumber ?? '',
+          taxId: ex.taxId ?? '',
+          amount: ex.amount != null ? String(ex.amount) : '',
+        });
+      }
+      setOcr({ enabled: data.enabled, amount: ex?.amount ?? null, confidence: ex?.confidence ?? null });
+    } catch {
+      // La IA puede fallar o estar deshabilitada: permitimos carga manual igual.
+      setOcr({ enabled: false, amount: null, confidence: null });
+    } finally {
       setOcrStatus('done');
-    }, 1200);
+    }
   }
 
   const canSubmit =
@@ -118,6 +174,7 @@ export function RegisterTransactionDialog({
       fd.set('concept', form.concept.trim());
       fd.set('category', form.category);
       fd.set('amount', form.amount);
+      fd.set('settlementType', form.settlementType);
       if (form.invoiceDate) fd.set('invoiceDate', form.invoiceDate);
       if (form.invoiceNumber) fd.set('invoiceNumber', form.invoiceNumber);
       if (form.taxId) fd.set('taxId', form.taxId);
@@ -233,9 +290,16 @@ export function RegisterTransactionDialog({
                     <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-zinc-900">Campos extraídos por IA</p>
-                        <Badge variant="warning" className="gap-1">
-                          <Sparkles className="h-3 w-3" /> Simulado
-                        </Badge>
+                        {ocr?.enabled ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <Sparkles className="h-3 w-3" /> Gemini
+                            {ocr.confidence != null && ` · ${Math.round(ocr.confidence * 100)}%`}
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" /> IA no disponible
+                          </Badge>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
@@ -343,6 +407,17 @@ export function RegisterTransactionDialog({
                           onChange={(e) => set({ amount: e.target.value })}
                           className="border-zinc-300 bg-white text-zinc-900 h-9"
                         />
+                        {amountMatch === true && (
+                          <p className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                            <CheckCircle2 className="h-3 w-3" /> Coincide con la factura (IA)
+                          </p>
+                        )}
+                        {amountMatch === false && (
+                          <p className="flex items-center gap-1 text-[11px] font-semibold text-red-600">
+                            <XCircle className="h-3 w-3" /> No coincide con la factura
+                            {ocr?.amount != null && ` ($ ${ocr.amount})`}
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs font-bold text-zinc-700">Fecha de la factura</label>
@@ -385,13 +460,42 @@ export function RegisterTransactionDialog({
                         className="border-zinc-300 bg-white text-zinc-900 h-9"
                       />
                     </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-700">Tipo de liquidación</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => set({ settlementType: 'on_chain' })}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            form.settlementType === 'on_chain'
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50'
+                          }`}
+                        >
+                          <Link2 className="h-3.5 w-3.5" /> On-chain (verificable)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => set({ settlementType: 'cash' })}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            form.settlementType === 'cash'
+                              ? 'border-amber-500 bg-amber-50 text-amber-700'
+                              : 'border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50'
+                          }`}
+                        >
+                          <Banknote className="h-3.5 w-3.5" /> Efectivo (atestiguado)
+                        </button>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
 
               <p className="flex items-start gap-1.5 text-xs text-amber-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Al validar, el hash del comprobante se ancla on-chain (Stellar/Soroban) junto con estos datos.
+                Queda <strong>pendiente de aprobación</strong>. Un segundo rol (Auditor) debe aprobarla;
+                recién ahí se ancla el hash del comprobante on-chain (Stellar/Soroban).
               </p>
               {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
@@ -410,7 +514,7 @@ export function RegisterTransactionDialog({
                   onClick={handleSubmit}
                   className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {submitting ? 'Anclando…' : 'Validar y anclar'}
+                  {submitting ? 'Registrando…' : 'Registrar (pendiente de aprobación)'}
                 </Button>
               </div>
             </>

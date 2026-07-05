@@ -1,15 +1,13 @@
-import { Injectable, Inject, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { Injectable, Inject, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { SorobanService } from '../soroban/soroban.service';
+import { StorageService } from '../storage/storage.service';
+import { GeminiService } from '../ai/gemini.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
-
-const UPLOADS_DIR = join(process.cwd(), 'uploads', 'transactions');
 
 @Injectable()
 export class ProjectsService {
@@ -18,6 +16,8 @@ export class ProjectsService {
   constructor(
     @Inject(DB_POOL) private readonly pool: Pool,
     private readonly soroban: SorobanService,
+    private readonly storage: StorageService,
+    private readonly gemini: GeminiService,
   ) {}
 
   async listByOrg(orgId: string) {
@@ -208,16 +208,20 @@ export class ProjectsService {
       status: string;
       executed_at: Date | null;
       description: string | null;
+      settlement_type: string | null;
+      ai_match: boolean | null;
+      created_by: string | null;
     }>(
       // Aliaseamos las columnas reales del esquema a los nombres que espera el front
       // (la tabla usa tx_status / confirmed_at / concept, no status/executed_at/description).
       `SELECT t.id, t.memo_id, t.tx_hash, t.amount, t.asset_code,
-              t.tx_status AS status, t.confirmed_at AS executed_at, t.concept AS description
+              t.tx_status AS status, t.confirmed_at AS executed_at, t.concept AS description,
+              t.settlement_type, t.ai_match, t.created_by
        FROM transactions t
        JOIN projects p ON p.id = t.project_id
        WHERE t.project_id = $1
          AND p.organization_id = $2
-       ORDER BY t.confirmed_at DESC NULLS LAST, t.created_at DESC
+       ORDER BY t.created_at DESC
        LIMIT 100`,
       [projectId, orgId],
     );
@@ -353,6 +357,28 @@ export class ProjectsService {
     return project;
   }
 
+  /**
+   * OCR + extracción de una factura vía Gemini. No persiste nada — solo devuelve
+   * los campos detectados para prellenar el formulario de "Registrar transacción".
+   */
+  async extractInvoice(file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException({ code: 'no_file', message: 'Se requiere un archivo (campo "file")' });
+    }
+    const extraction = await this.gemini.extractInvoice(file.buffer, file.mimetype);
+    return {
+      enabled: this.gemini.enabled,
+      extraction, // null si la IA está deshabilitada o falló
+    };
+  }
+
+  /**
+   * Registra una transacción (gasto/factura) en estado `pending`.
+   *
+   * - Guarda el comprobante en R2 (content-addressed por su SHA-256).
+   * - Valida el contenido con IA: compara el monto declarado vs el extraído → ai_match.
+   * - NO ancla on-chain acá: el anclaje ocurre recién al aprobar (doble control).
+   */
   async createTransaction(
     orgId: string,
     userId: string,
@@ -368,16 +394,43 @@ export class ProjectsService {
       throw new BadRequestException({ code: 'invalid_project', message: 'Project not found in your organization' });
     }
 
-    // Comprobante: se guarda en disco local y se ancla su hash SHA-256 (fingerprint) on-chain.
-    let supportFilePath: string | null = null;
+    // Comprobante → hash SHA-256 (fingerprint) + almacenamiento inmutable en R2.
     let supportFileHash: string | null = null;
+    let storageKey: string | null = null;
     if (file) {
       supportFileHash = createHash('sha256').update(file.buffer).digest('hex');
-      await mkdir(UPLOADS_DIR, { recursive: true });
-      const safeName = `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      await writeFile(join(UPLOADS_DIR, safeName), file.buffer);
-      supportFilePath = join('uploads', 'transactions', safeName);
+      storageKey = await this.storage.putInvoice(file.buffer, supportFileHash, file.mimetype);
+      if (!storageKey && this.storage.enabled) {
+        this.logger.warn(`putInvoice devolvió null pese a R2 habilitado (hash=${supportFileHash})`);
+      }
     }
+
+    // Validación de contenido con IA: monto de la factura vs monto declarado.
+    let aiExtracted: unknown = null;
+    let aiAmount: number | null = null;
+    let aiMatch: boolean | null = null;
+    let aiConfidence: number | null = null;
+    let aiFlags: string | null = null;
+    if (file) {
+      const extraction = await this.gemini.extractInvoice(file.buffer, file.mimetype);
+      if (extraction) {
+        aiExtracted = extraction;
+        aiAmount = extraction.amount;
+        aiConfidence = extraction.confidence;
+        if (typeof aiAmount === 'number' && aiAmount > 0) {
+          // Tolerancia 1% para redondeos/impuestos menores.
+          const diff = Math.abs(aiAmount - dto.amount);
+          aiMatch = diff <= Math.max(0.01, dto.amount * 0.01);
+          if (!aiMatch) {
+            aiFlags = `amount_mismatch: declarado=${dto.amount} factura=${aiAmount}`;
+          }
+        } else {
+          aiFlags = 'amount_not_detected';
+        }
+      }
+    }
+
+    const settlementType = dto.settlementType ?? 'on_chain';
 
     // PAY-YYYY-NNNN — memo_id es único globalmente (mismo esquema que public.service.ts)
     const year = new Date().getFullYear();
@@ -391,9 +444,10 @@ export class ProjectsService {
     const result = await this.pool.query<{ id: string; created_at: Date }>(
       `INSERT INTO transactions
          (organization_id, project_id, beneficiary, concept, category, amount, asset_code,
-          memo_id, tx_status, support_file_path, support_file_hash, invoice_number, tax_id,
-          invoice_date, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14)
+          memo_id, tx_status, support_file_hash, storage_key, invoice_number, tax_id,
+          invoice_date, settlement_type, ai_extracted, ai_amount, ai_match, ai_confidence,
+          ai_flags, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING id, created_at`,
       [
         orgId,
@@ -404,18 +458,83 @@ export class ProjectsService {
         dto.amount,
         dto.assetCode ?? 'USDC',
         memoId,
-        supportFilePath,
         supportFileHash,
+        storageKey,
         dto.invoiceNumber ?? null,
         dto.taxId ?? null,
         dto.invoiceDate ?? null,
+        settlementType,
+        aiExtracted ? JSON.stringify(aiExtracted) : null,
+        aiAmount,
+        aiMatch,
+        aiConfidence,
+        aiFlags,
         userId,
       ],
     );
 
     const txId = result.rows[0].id;
+    this.logger.log(
+      `Transaction ${txId} creada (pending) settlement=${settlementType} ai_match=${aiMatch}`,
+    );
 
-    // Anclar on-chain con expense-anchor (mismo patrón que reports.service.ts)
+    return {
+      id: txId,
+      memoId,
+      status: 'pending',
+      createdAt: result.rows[0].created_at.toISOString(),
+      supportFileHash,
+      settlementType,
+      ai: { amount: aiAmount, match: aiMatch, confidence: aiConfidence, flags: aiFlags },
+    };
+  }
+
+  /**
+   * Doble control: un rol distinto al creador aprueba la transacción y RECIÉN AHÍ se
+   * ancla on-chain (expense-anchor). Devuelve el estado resultante.
+   */
+  async approveTransaction(
+    orgId: string,
+    approverUserId: string,
+    projectId: string,
+    txId: string,
+  ) {
+    const txRes = await this.pool.query<{
+      id: string;
+      amount: string;
+      concept: string;
+      support_file_hash: string | null;
+      tx_status: string;
+      created_by: string;
+    }>(
+      `SELECT id, amount, concept, support_file_hash, tx_status, created_by
+         FROM transactions
+        WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
+      [txId, projectId, orgId],
+    );
+    const tx = txRes.rows[0];
+    if (!tx) {
+      throw new NotFoundException({ code: 'tx_not_found', message: 'Transacción no encontrada' });
+    }
+    if (tx.tx_status !== 'pending') {
+      throw new BadRequestException({ code: 'not_pending', message: `La transacción ya está en estado ${tx.tx_status}` });
+    }
+    // Regla de doble control: el aprobador no puede ser el creador.
+    if (tx.created_by === approverUserId) {
+      throw new ForbiddenException({
+        code: 'self_approval',
+        message: 'El aprobador debe ser un usuario distinto al que registró la transacción',
+      });
+    }
+
+    await this.pool.query(
+      `UPDATE transactions
+          SET approved_by = $1, approved_at = CURRENT_TIMESTAMP, tx_status = 'submitted'
+        WHERE id = $2`,
+      [approverUserId, txId],
+    );
+
+    const amount = Number(tx.amount);
     const orgRow = await this.pool.query<{ wallet_address: string | null }>(
       `SELECT wallet_address FROM organizations WHERE id = $1`,
       [orgId],
@@ -424,14 +543,14 @@ export class ProjectsService {
       orgRow.rows[0]?.wallet_address ??
       (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
     const receiptHash =
-      supportFileHash ?? createHash('sha256').update(`${txId}:${dto.concept}:${dto.amount}`).digest('hex');
+      tx.support_file_hash ?? createHash('sha256').update(`${txId}:${tx.concept}:${amount}`).digest('hex');
 
-    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
+    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla.
     this.soroban
-      .anchorExpense({
+      .anchorExpenseWithRetry({
         expenseId: txId,
         projectId,
-        amountXlm: dto.amount,
+        amountXlm: amount,
         receiptHash,
         callerPublicKey,
       })
@@ -443,16 +562,35 @@ export class ProjectsService {
               [txHash, txId],
             )
             .catch((e) => this.logger.error('tx_hash update failed', e));
-          this.logger.log(`Transaction ${txId} anchored on-chain tx=${txHash}`);
+          this.logger.log(`Transaction ${txId} approved+anchored tx=${txHash}`);
+        } else {
+          this.pool
+            .query(`UPDATE transactions SET tx_status = 'failed' WHERE id = $1`, [txId])
+            .catch((e) => this.logger.error('tx_status failed update error', e));
         }
       })
-      .catch((e) => this.logger.error('anchorExpense failed for transaction', e));
+      .catch((e) => this.logger.error('anchorExpense failed on approval', e));
 
-    return {
-      id: txId,
-      memoId,
-      createdAt: result.rows[0].created_at.toISOString(),
-      supportFileHash,
-    };
+    return { id: txId, status: 'submitted', approvedBy: approverUserId };
+  }
+
+  /** Rechaza una transacción pendiente (segundo rol). No se ancla nada. */
+  async rejectTransaction(
+    orgId: string,
+    approverUserId: string,
+    projectId: string,
+    txId: string,
+  ) {
+    const res = await this.pool.query(
+      `UPDATE transactions
+          SET tx_status = 'failed', approved_by = $1, approved_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND project_id = $3 AND organization_id = $4 AND tx_status = 'pending'
+        RETURNING id`,
+      [approverUserId, txId, projectId, orgId],
+    );
+    if (!res.rows[0]) {
+      throw new NotFoundException({ code: 'tx_not_found', message: 'Transacción pendiente no encontrada' });
+    }
+    return { id: txId, status: 'failed' };
   }
 }

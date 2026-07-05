@@ -10,6 +10,7 @@ import { authHeaders } from '@/lib/auth/sep10';
 import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
 import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
 import { explorerTxUrl } from '@/lib/stellar-explorer';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 
@@ -32,6 +33,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 const TX_STATUS: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Pendiente',  color: 'text-yellow-600 dark:text-yellow-400' },
+  submitted: { label: 'Anclando…',  color: 'text-blue-600 dark:text-blue-400' },
   confirmed: { label: 'Confirmada', color: 'text-emerald-600 dark:text-emerald-400' },
   failed:    { label: 'Fallida',    color: 'text-red-600 dark:text-red-400' },
 };
@@ -64,6 +66,9 @@ interface Transaction {
   status: string;
   executed_at: string | null;
   description: string | null;
+  settlement_type: string | null;
+  ai_match: boolean | null;
+  created_by: string | null;
 }
 
 export default function ProjectDetailPage() {
@@ -78,6 +83,10 @@ export default function ProjectDetailPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [approvingTx, setApprovingTx] = useState<string | null>(null);
+
+  const { user } = useCurrentUser();
+  const canApprove = user?.role === 'admin' || user?.role === 'auditor';
 
   async function handleStatusChange(newStatus: string) {
     if (!project || newStatus === project.status) return;
@@ -102,6 +111,21 @@ export default function ProjectDetailPage() {
   async function loadTransactions() {
     const txRes = await fetch(`${API}/my/projects/${id}/transactions`, { headers: authHeaders() });
     if (txRes.ok) setTransactions(await txRes.json());
+  }
+
+  // Doble control: aprobar (ancla on-chain) o rechazar una transacción pendiente.
+  async function reviewTx(txId: string, action: 'approve' | 'reject') {
+    setApprovingTx(txId);
+    try {
+      const res = await fetch(`${API}/my/projects/${id}/transactions/${txId}/${action}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      });
+      if (res.status === 401) { router.push('/login'); return; }
+      await loadTransactions();
+    } finally {
+      setApprovingTx(null);
+    }
   }
 
   useEffect(() => {
@@ -313,7 +337,7 @@ export default function ProjectDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                        {['ID / Memo', 'Monto', 'Estado', 'Fecha', 'Hash'].map((h) => (
+                        {['ID / Memo', 'Monto', 'Liquidación', 'Estado', 'Fecha', 'Hash', 'Acción'].map((h) => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                             {h}
                           </th>
@@ -327,7 +351,23 @@ export default function ProjectDetailPage() {
                           <tr key={tx.id} className="border-b border-zinc-100 dark:border-zinc-900 last:border-0">
                             <td className="px-3 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">{tx.memo_id}</td>
                             <td className="px-3 py-3 font-semibold text-zinc-900 dark:text-white">
-                              {Number(tx.amount).toLocaleString('es-CO')} {tx.asset_code}
+                              <span className="inline-flex items-center gap-1">
+                                {Number(tx.amount).toLocaleString('es-CO')} {tx.asset_code}
+                                {tx.ai_match === false && (
+                                  <AlertCircle className="h-3.5 w-3.5 text-red-500" aria-label="No coincide con la factura (IA)" />
+                                )}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              {tx.settlement_type === 'cash' ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                  Efectivo · atestiguado
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                  On-chain · verificable
+                                </span>
+                              )}
                             </td>
                             <td className={`px-3 py-3 text-xs font-semibold ${txStatus.color}`}>
                               {txStatus.label}
@@ -346,6 +386,33 @@ export default function ProjectDetailPage() {
                                   {tx.tx_hash.slice(0, 8)}…
                                   <ExternalLink className="h-3 w-3" />
                                 </a>
+                              ) : (
+                                <span className="text-zinc-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              {tx.status === 'pending' && canApprove && tx.created_by !== user?.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    disabled={approvingTx === tx.id}
+                                    onClick={() => reviewTx(tx.id, 'approve')}
+                                    className="h-7 bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"
+                                  >
+                                    {approvingTx === tx.id ? '…' : 'Aprobar'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={approvingTx === tx.id}
+                                    onClick={() => reviewTx(tx.id, 'reject')}
+                                    className="h-7 px-2 text-xs"
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              ) : tx.status === 'pending' && tx.created_by === user?.id ? (
+                                <span className="text-[11px] text-zinc-400">Tu registro · espera 2º rol</span>
                               ) : (
                                 <span className="text-zinc-400 text-xs">—</span>
                               )}
