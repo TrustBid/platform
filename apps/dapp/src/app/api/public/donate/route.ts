@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 import { z } from 'zod';
 
 import { API_BASE_URL as API } from '@/lib/api/base-url';

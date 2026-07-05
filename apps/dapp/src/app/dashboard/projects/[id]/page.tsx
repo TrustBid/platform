@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
 import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
+import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
 import { explorerTxUrl } from '@/lib/stellar-explorer';
 
 import { API_BASE_URL as API } from '@/lib/api/base-url';

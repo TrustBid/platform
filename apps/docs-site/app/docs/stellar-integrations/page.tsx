@@ -117,9 +117,9 @@ const SBT_DESC = [
 ];
 
 const ZK_DESC = [
-  "Since Protocol 22 (CAP-0059), Soroban includes host functions for the BLS12-381 curve, enabling on-chain verification of zk-SNARKs (Groth16). A reference contract exists (groth16_verifier).",
-  'In TrustBid: proving claims without exposing private data. Example: "this project spent within budget and met the funder\'s criteria" can be proven and verified on-chain without publishing sensitive financial detail.',
-  "Maturity: Phase 3, after SBT and audit are working.",
+  "Since Protocol 22 (CAP-0059), Soroban includes host functions for the BLS12-381 curve, enabling on-chain verification of zk-SNARKs (Groth16). A reference verifier exists in Stellar's soroban-examples (not a TrustBid contract).",
+  'Planned use in TrustBid: proving claims without exposing private data. Example: "this project spent within budget and met the funder\'s criteria" could be proven and verified on-chain without publishing sensitive financial detail.',
+  "Status in TrustBid: not yet implemented — planned for Phase 3 (roadmap), after SBT and audit are working.",
 ];
 
 const SAK_DESC = [
@@ -248,7 +248,7 @@ export default function StellarIntegrationsPage() {
         <DocParagraph key={p}>{p}</DocParagraph>
       ))}
 
-      <SectionHeading level={3}>Zero-knowledge proofs on Soroban</SectionHeading>
+      <SectionHeading level={3}>Zero-knowledge proofs on Soroban (Roadmap — Phase 3)</SectionHeading>
       {ZK_DESC.map((p) => (
         <DocParagraph key={p}>{p}</DocParagraph>
       ))}

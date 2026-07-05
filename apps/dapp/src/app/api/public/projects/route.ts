@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 export async function GET(request: Request) {
