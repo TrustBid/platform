@@ -29,3 +29,7 @@ Thumbs.db
 # editors
 .vscode
 .idea
+
+# Soroban / Rust contracts
+contracts/target/
+contracts/.soroban/

@@ -29,20 +29,33 @@ function runCommand(command, args) {
   });
 }
 
-async function killExistingNextDevProcesses() {
+async function killProcessOnPort(port) {
   if (process.platform === 'win32') {
     await runCommand('powershell', [
       '-NoProfile',
       '-Command',
-      `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'next dev' -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
+      `$connection = Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1; if ($connection) { Stop-Process -Id $connection.OwningProcess -Force }`,
     ]);
-  } else {
-    await runCommand('pkill', ['-f', 'next dev']);
+    return;
+  }
+
+  const { stdout } = await runCommand('lsof', ['-ti', `tcp:${port}`]);
+  const pids = stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const pid of pids) {
+    if (pid === String(process.pid)) {
+      continue;
+    }
+
+    await runCommand('kill', ['-9', pid]);
   }
 }
 
 async function main() {
-  await killExistingNextDevProcesses();
+  await killProcessOnPort(3000);
 
   const nextBin = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const child = spawn(nextBin, ['next', 'dev', '--hostname', '0.0.0.0', '--port', '3000'], {

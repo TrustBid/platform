@@ -30,11 +30,12 @@ export class ReportsService {
       submitted_at: Date | null;
       created_at: Date;
       anchor_tx_hash: string | null;
+      blockchain_status: string | null;
     }>(
       `SELECT r.id, r.project_id, p.name AS project_name, r.report_type, r.status,
               r.title, r.period_start, r.period_end, r.funds_used_amount,
               r.funds_used_asset, r.milestone_progress, r.submitted_at, r.created_at,
-              r.anchor_tx_hash
+              r.anchor_tx_hash, r.blockchain_status
        FROM reports r
        JOIN projects p ON p.id = r.project_id
        WHERE r.organization_id = $1
@@ -58,6 +59,7 @@ export class ReportsService {
       submittedAt: r.submitted_at ? r.submitted_at.toISOString() : null,
       createdAt: r.created_at.toISOString(),
       anchorTxHash: r.anchor_tx_hash ?? null,
+      blockchainStatus: r.blockchain_status ?? null,
     }));
   }
 
@@ -105,26 +107,55 @@ export class ReportsService {
     const serverPubKey = process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO';
     const amountXlm = Number(dto.fundsUsedAmount ?? 0);
 
-    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
-    this.soroban
-      .anchorExpense({
-        expenseId: reportId,
-        projectId: dto.projectId,
-        amountXlm,
-        receiptHash,
-        callerPublicKey: serverPubKey,
-      })
-      .then((txHash) => {
-        if (txHash) {
-          this.pool.query(
-            `UPDATE reports SET anchor_tx_hash = $1 WHERE id = $2`,
-            [txHash, reportId],
-          ).catch((e) => this.logger.error('anchor_tx_hash update failed', e));
-          this.logger.log(`Report ${reportId} anchored on-chain tx=${txHash}`);
-        }
-      })
-      .catch((e) => this.logger.error('anchorExpense failed for report', e));
+    // Fire-and-forget with retry: do not block HTTP response
+    void this.anchorReportOnChain(reportId, dto.projectId, amountXlm, receiptHash, serverPubKey);
 
     return { id: reportId, createdAt: result.rows[0].created_at.toISOString() };
+  }
+
+  private async anchorReportOnChain(
+    reportId: string,
+    projectId: string,
+    amountXlm: number,
+    receiptHash: string,
+    callerPublicKey: string,
+  ) {
+    await this.pool.query(
+      `UPDATE reports SET blockchain_status = 'pending' WHERE id = $1`,
+      [reportId],
+    ).catch((e) => this.logger.error('blockchain_status pending update failed', e));
+
+    const txHash = await this.soroban.anchorExpenseWithRetry({
+      expenseId: reportId,
+      projectId,
+      amountXlm,
+      receiptHash,
+      callerPublicKey,
+    });
+
+    if (txHash) {
+      await this.pool.query(
+        `UPDATE reports SET anchor_tx_hash = $1, blockchain_status = 'anchored' WHERE id = $2`,
+        [txHash, reportId],
+      ).catch((e) => this.logger.error('anchor_tx_hash update failed', e));
+      this.logger.log(`Report ${reportId} anchored on-chain tx=${txHash}`);
+    } else {
+      await this.pool.query(
+        `UPDATE reports SET blockchain_status = 'failed' WHERE id = $1`,
+        [reportId],
+      ).catch((e) => this.logger.error('blockchain_status failed update failed', e));
+      this.logger.warn(`Report anchor failed reportId=${reportId} projectId=${projectId}`);
+    }
+  }
+
+  async getOnChainExpense(reportId: string, orgId: string) {
+    const row = await this.pool.query(
+      `SELECT id FROM reports WHERE id = $1 AND organization_id = $2`,
+      [reportId, orgId],
+    );
+    if (!row.rows[0]) {
+      throw new BadRequestException({ code: 'not_found', message: 'Report not found' });
+    }
+    return this.soroban.readExpense(reportId);
   }
 }

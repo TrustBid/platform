@@ -134,6 +134,9 @@ function ProjectsPageInner() {
                     <Layers className="h-3 w-3" />
                     {CATEGORY_LABELS[p.category] ?? p.category}
                     {p.blockchainEnabled && <span className="ml-1 text-blue-500 font-medium">· ⛓ Blockchain</span>}
+                    {p.allocationTxHash && (
+                      <span className="ml-1 text-emerald-600 dark:text-emerald-400 text-xs">· ancorado</span>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">

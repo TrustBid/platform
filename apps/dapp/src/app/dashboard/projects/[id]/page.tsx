@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
-import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
+import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
+import { explorerTxUrl } from '@/lib/stellar-explorer';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 const CATEGORY_LABELS: Record<string, string> = {
   infrastructure: 'Infraestructura',
@@ -45,6 +46,8 @@ interface ProjectDetail {
   spent_amount: string;
   budget_asset: string;
   blockchain_enabled: boolean;
+  allocation_tx_hash: string | null;
+  blockchain_status: string | null;
   start_date: string | null;
   end_date: string | null;
   current_stage: string | null;
@@ -72,6 +75,8 @@ export default function ProjectDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   async function handleStatusChange(newStatus: string) {
     if (!project || newStatus === project.status) return;
@@ -171,6 +176,42 @@ export default function ProjectDetailPage() {
               </span>
             )}
           </div>
+          {project.blockchain_enabled && (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <BlockchainAnchorBadge
+                txHash={project.allocation_tx_hash}
+                status={project.blockchain_status}
+              />
+              <VerifyOnChainButton
+                verifying={verifying}
+                onVerify={async () => {
+                  setVerifying(true);
+                  setVerifyMsg(null);
+                  try {
+                    const res = await fetch(`${API}/my/projects/${id}/on-chain`, {
+                      headers: authHeaders(),
+                    });
+                    if (!res.ok) throw new Error('failed');
+                    const onChain = await res.json();
+                    if (!onChain) {
+                      setVerifyMsg('Sin datos on-chain para este proyecto.');
+                    } else {
+                      setVerifyMsg(
+                        `On-chain: ${onChain.amountXlm} XLM (ledger ${onChain.allocatedAt})`,
+                      );
+                    }
+                  } catch {
+                    setVerifyMsg('No se pudo verificar on-chain.');
+                  } finally {
+                    setVerifying(false);
+                  }
+                }}
+              />
+              {verifyMsg && (
+                <span className="text-xs text-zinc-500">{verifyMsg}</span>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             <Layers className="h-3.5 w-3.5" />
             {CATEGORY_LABELS[project.category] ?? project.category}
@@ -296,7 +337,7 @@ export default function ProjectDetailPage() {
                             <td className="px-3 py-3">
                               {tx.tx_hash ? (
                                 <a
-                                  href={`https://stellar.expert/explorer/testnet/tx/${tx.tx_hash}`}
+                                  href={explorerTxUrl(tx.tx_hash)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-xs font-mono"

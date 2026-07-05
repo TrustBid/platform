@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { authHeaders } from '@/lib/auth/sep10';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 export interface Project {
   id: string;
@@ -16,6 +16,8 @@ export interface Project {
   spentAmount: number;
   budgetAsset: string;
   blockchainEnabled: boolean;
+  allocationTxHash?: string | null;
+  blockchainStatus?: string | null;
   currentStage: string;
   createdAt: string;
 }

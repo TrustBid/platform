@@ -21,8 +21,9 @@ import { useCurrentUser, type CurrentUser } from '@/hooks/useCurrentUser';
 import { useOrg, useOrgUsers, type Organization } from '@/hooks/useOrg';
 import { authHeaders } from '@/lib/auth/sep10';
 import { COUNTRIES, countryName } from '@/lib/countries';
+import { OrgBadges } from '@/components/blockchain/OrgBadges';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -264,6 +265,11 @@ function GeneralTab({
               )}
             </div>
           </div>
+          {org?.id && (
+            <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+              <OrgBadges organizationId={org.id} />
+            </div>
+          )}
         </CardContent>
       </Card>
 

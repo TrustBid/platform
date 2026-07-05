@@ -35,11 +35,14 @@ export class ProjectsService {
       start_date: Date | null;
       end_date: Date | null;
       current_stage: string | null;
+      allocation_tx_hash: string | null;
+      blockchain_status: string | null;
       created_at: Date;
     }>(
       `SELECT
          p.id, p.name, p.category, p.status, p.description, p.beneficiary,
          p.budget_amount, p.spent_amount, p.budget_asset, p.blockchain_enabled,
+         p.allocation_tx_hash, p.blockchain_status,
          p.start_date, p.end_date, p.created_at,
          (SELECT ps.name FROM pipeline_stages ps WHERE ps.id = p.current_stage_id) AS current_stage
        FROM projects p
@@ -63,6 +66,8 @@ export class ProjectsService {
       startDate: r.start_date ?? null,
       endDate: r.end_date ?? null,
       currentStage: r.current_stage ?? '',
+      allocationTxHash: r.allocation_tx_hash ?? null,
+      blockchainStatus: r.blockchain_status ?? null,
       createdAt: r.created_at.toISOString(),
     }));
   }
@@ -76,10 +81,44 @@ export class ProjectsService {
       [id, orgId],
     );
     if (!result.rows[0]) throw new NotFoundException({ code: 'not_found', message: 'Project not found' });
-    return result.rows[0];
+    const r = result.rows[0];
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      beneficiary: r.beneficiary,
+      category: r.category,
+      status: r.status,
+      budget_amount: r.budget_amount,
+      spent_amount: r.spent_amount,
+      budget_asset: r.budget_asset,
+      blockchain_enabled: r.blockchain_enabled,
+      allocation_tx_hash: r.allocation_tx_hash ?? null,
+      blockchain_status: r.blockchain_status ?? null,
+      start_date: r.start_date,
+      end_date: r.end_date,
+      current_stage: r.current_stage ?? null,
+      created_at: r.created_at,
+    };
+  }
+
+  async getOnChainAllocation(id: string, orgId: string) {
+    await this.getById(id, orgId);
+    return this.soroban.readAllocation(id);
   }
 
   async update(id: string, orgId: string, dto: UpdateProjectDto) {
+    const before = await this.pool.query<{
+      budget_amount: string;
+      blockchain_enabled: boolean;
+    }>(
+      `SELECT budget_amount, blockchain_enabled FROM projects WHERE id = $1 AND organization_id = $2`,
+      [id, orgId],
+    );
+    if (!before.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'Project not found' });
+    }
+
     // Mapa columna → valor; solo se actualizan las claves presentes en el DTO.
     // Los nombres de columna son literales (no input del usuario) → sin riesgo de inyección.
     const columns: Record<string, unknown> = {
@@ -118,6 +157,43 @@ export class ProjectsService {
       values,
     );
     if (!result.rows[0]) throw new NotFoundException({ code: 'not_found', message: 'Project not found' });
+
+    const prev = before.rows[0];
+    const budgetChanged =
+      dto.budgetAmount !== undefined &&
+      Number(prev.budget_amount) !== dto.budgetAmount;
+    const blockchainOn =
+      dto.blockchainEnabled ?? prev.blockchain_enabled;
+
+    if (budgetChanged && blockchainOn) {
+      const orgRow = await this.pool.query<{ wallet_address: string | null }>(
+        `SELECT wallet_address FROM organizations WHERE id = $1`,
+        [orgId],
+      );
+      const callerPublicKey =
+        orgRow.rows[0]?.wallet_address ??
+        (process.env.STELLAR_SERVER_PUBLIC_KEY ??
+          'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
+
+      const txHash = await this.soroban.allocateFunds(
+        id,
+        dto.budgetAmount!,
+        callerPublicKey,
+      );
+      if (txHash) {
+        await this.pool.query(
+          `UPDATE projects SET allocation_tx_hash = $1, blockchain_status = 'anchored' WHERE id = $2`,
+          [txHash, id],
+        );
+        this.logger.log(`Re-allocation anchored project=${id} tx=${txHash}`);
+      } else {
+        await this.pool.query(
+          `UPDATE projects SET blockchain_status = 'failed' WHERE id = $1`,
+          [id],
+        );
+        this.logger.warn(`Re-allocation failed project=${id}`);
+      }
+    }
 
     return this.getById(id, orgId);
   }
@@ -185,6 +261,36 @@ export class ProjectsService {
     }));
   }
 
+  async getPipelineStages(projectId: string, orgId: string) {
+    const result = await this.pool.query<{
+      id: string;
+      name: string;
+      description: string | null;
+      order_index: number;
+      current_stage_order: number;
+    }>(
+      `SELECT ps.id, ps.name, ps.description, ps.order_index,
+              (SELECT p2.current_stage_id FROM projects p2 WHERE p2.id = $1) AS current_stage_id,
+              (SELECT ps2.order_index FROM pipeline_stages ps2 WHERE ps2.id = (SELECT p2.current_stage_id FROM projects p2 WHERE p2.id = $1)) AS current_stage_order
+       FROM pipeline_stages ps
+       WHERE ps.project_id = $1
+         AND ps.organization_id = $2
+       ORDER BY ps.order_index ASC`,
+      [projectId, orgId],
+    );
+
+    return result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      orderIndex: r.order_index,
+      status:
+        r.order_index < r.current_stage_order ? 'completed' :
+        r.order_index === r.current_stage_order ? 'current' :
+        'pending',
+    }));
+  }
+
   async create(orgId: string, userId: string, dto: CreateProjectDto) {
     const result = await this.pool.query<{ id: string; created_at: Date }>(
       `INSERT INTO projects
@@ -231,10 +337,16 @@ export class ProjectsService {
       if (txHash) {
         project.allocationTxHash = txHash;
         await this.pool.query(
-          `UPDATE projects SET allocation_tx_hash = $1 WHERE id = $2`,
+          `UPDATE projects SET allocation_tx_hash = $1, blockchain_status = 'anchored' WHERE id = $2`,
           [txHash, project.id],
         );
         this.logger.log(`Allocation anchored project=${project.id} tx=${txHash} caller=${callerPublicKey}`);
+      } else {
+        await this.pool.query(
+          `UPDATE projects SET blockchain_status = 'failed' WHERE id = $1`,
+          [project.id],
+        );
+        this.logger.warn(`Allocation failed project=${project.id} org=${orgId}`);
       }
     }
 

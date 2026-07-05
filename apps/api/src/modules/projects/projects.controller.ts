@@ -37,16 +37,20 @@ export class ProjectsController {
     return this.projectsService.getTransactions(id, orgId);
   }
 
-  @Post(':id/transactions')
-  @UseInterceptors(FileInterceptor('file'))
-  createTransaction(
+  @Get(':id/on-chain')
+  getOnChain(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: CreateTransactionDto,
-    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentOrg() orgId: string,
-    @CurrentUser() user: { sub: string },
   ) {
-    return this.projectsService.createTransaction(orgId, user.sub, id, body, file);
+    return this.projectsService.getOnChainAllocation(id, orgId);
+  }
+
+  @Get(':id/pipeline-stages')
+  getPipelineStages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getPipelineStages(id, orgId);
   }
 
   @Patch(':id')

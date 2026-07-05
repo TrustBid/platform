@@ -33,6 +33,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
+    } else {
+      // Non-Error objects (e.g. from pg driver or redis)
+      try {
+        message = JSON.stringify(exception);
+      } catch {
+        message = String(exception);
+      }
+    }
+
+    // Log the raw exception for server-side debugging
+    if (status >= 500) {
+      console.error('[HttpExceptionFilter]', exception);
     }
 
     response.status(status).json({ error: { code, message } });

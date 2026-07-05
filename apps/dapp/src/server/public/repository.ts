@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from '@/lib/api/base-url';
 import type {
   DonationInput,
   DonationIntent,
@@ -16,10 +17,7 @@ import { NGO, PROJECTS } from './seed';
  * (`./seed.ts`) queda como fallback resiliente si el backend no responde, para
  * que el portal público nunca muestre una página rota.
  */
-const BACKEND_URL =
-  process.env.BACKEND_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'https://api-production-9557.up.railway.app';
+const BACKEND_URL = process.env.BACKEND_URL ?? getApiBaseUrl();
 
 async function backendGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND_URL}${path}`, {

@@ -29,6 +29,8 @@ TrustBid replaces fragmented spreadsheets and manual Excel reconciliation with a
 
 ## Docs
 
+- **Monorepo:** [TrustBid/platform](https://github.com/TrustBid/platform) — apps, API, and Soroban contracts in `contracts/`
+- **Contract tooling:** [Caatinga](https://github.com/Dione-b/caatinga) (`caatinga deploy`, typed bindings)
 - [Public documentation site](https://trustbid-docs-site.pages.dev)
 
 ## Contact

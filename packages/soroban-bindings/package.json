@@ -1,0 +1,38 @@
+{
+  "name": "@trustbid/soroban-bindings",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./fund-tracker": {
+      "types": "./src/generated/fund-tracker/src/index.ts",
+      "default": "./dist/generated/fund-tracker/src/index.js"
+    },
+    "./expense-anchor": {
+      "types": "./src/generated/expense-anchor/src/index.ts",
+      "default": "./dist/generated/expense-anchor/src/index.js"
+    },
+    "./sbt-badge": {
+      "types": "./src/generated/sbt-badge/src/index.ts",
+      "default": "./dist/generated/sbt-badge/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "esbuild \"src/**/*.ts\" --outdir=dist --outbase=src --platform=node --format=cjs --packages=external",
+    "prepare": "npm run build",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.0.1",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5"
+  }
+}

@@ -1,6 +1,6 @@
 export const runtime = 'edge';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

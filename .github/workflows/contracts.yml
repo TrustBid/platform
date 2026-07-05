@@ -1,0 +1,54 @@
+name: Test contracts
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts.yml'
+      - 'scripts/contracts.sh'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts.yml'
+      - 'scripts/contracts.sh'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Stellar CLI
+        run: cargo install stellar-cli --version 23.0.0 --locked
+
+      - name: Run contract tests
+        run: npm run contracts:test
+
+      - name: Build WASM
+        run: npm run contracts:build
+
+      - name: Caatinga doctor
+        run: npx caatinga doctor --network testnet --strict 2>&1 || echo "Doctor advisory warnings (non-fatal)"
