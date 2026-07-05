@@ -64,6 +64,8 @@ export interface ProjectSummary {
   beneficiariesReached: number;
   /** Etapa actual del pipeline (label) para el pill. */
   currentStage: string;
+  /** Foto de portada del proyecto (carrousel del home, tarjetas). */
+  imageUrl?: string | null;
 }
 
 /** Detalle completo del proyecto. */

@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
 
 @Controller('my/projects')
@@ -33,6 +35,18 @@ export class ProjectsController {
     @CurrentOrg() orgId: string,
   ) {
     return this.projectsService.getTransactions(id, orgId);
+  }
+
+  @Post(':id/transactions')
+  @UseInterceptors(FileInterceptor('file'))
+  createTransaction(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: CreateTransactionDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentOrg() orgId: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.projectsService.createTransaction(orgId, user.sub, id, body, file);
   }
 
   @Patch(':id')

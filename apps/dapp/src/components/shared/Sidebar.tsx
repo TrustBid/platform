@@ -84,7 +84,7 @@ export function AppSidebar({
   }
 
   return (
-    <Sidebar className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <Sidebar className="force-light border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       
       {/* Header con el isotipo de TrustBid */}
       <SidebarHeader className="border-b border-sidebar-border/70 bg-sidebar px-6 py-5">

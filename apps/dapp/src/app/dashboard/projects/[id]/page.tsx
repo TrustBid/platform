@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
+import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
 
@@ -92,6 +93,11 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function loadTransactions() {
+    const txRes = await fetch(`${API}/my/projects/${id}/transactions`, { headers: authHeaders() });
+    if (txRes.ok) setTransactions(await txRes.json());
+  }
+
   useEffect(() => {
     async function load() {
       try {
@@ -103,8 +109,7 @@ export default function ProjectDetailPage() {
         setProject(data);
 
         // Cargar transacciones del proyecto
-        const txRes = await fetch(`${API}/my/projects/${id}/transactions`, { headers: authHeaders() });
-        if (txRes.ok) setTransactions(await txRes.json());
+        await loadTransactions();
       } catch {
         setNotFound(true);
       } finally {
@@ -112,6 +117,7 @@ export default function ProjectDetailPage() {
       }
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
   if (loading) {
@@ -245,10 +251,15 @@ export default function ProjectDetailPage() {
 
           {/* Transacciones */}
           <Card className="bg-zinc-50 border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">
                 Transacciones{transactions.length > 0 && ` (${transactions.length})`}
               </CardTitle>
+              <RegisterTransactionDialog
+                projectId={project.id}
+                projectName={project.name}
+                onCreated={loadTransactions}
+              />
             </CardHeader>
             <CardContent className="pt-0">
               {transactions.length === 0 ? (

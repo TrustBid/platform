@@ -1,9 +1,15 @@
-import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { createHash, randomUUID } from 'crypto';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { SorobanService } from '../soroban/soroban.service';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
+import type { CreateTransactionDto } from './dto/create-transaction.dto';
+
+const UPLOADS_DIR = join(process.cwd(), 'uploads', 'transactions');
 
 @Injectable()
 export class ProjectsService {
@@ -233,5 +239,108 @@ export class ProjectsService {
     }
 
     return project;
+  }
+
+  async createTransaction(
+    orgId: string,
+    userId: string,
+    projectId: string,
+    dto: CreateTransactionDto,
+    file?: Express.Multer.File,
+  ) {
+    const project = await this.pool.query(
+      `SELECT id FROM projects WHERE id = $1 AND organization_id = $2`,
+      [projectId, orgId],
+    );
+    if (!project.rows[0]) {
+      throw new BadRequestException({ code: 'invalid_project', message: 'Project not found in your organization' });
+    }
+
+    // Comprobante: se guarda en disco local y se ancla su hash SHA-256 (fingerprint) on-chain.
+    let supportFilePath: string | null = null;
+    let supportFileHash: string | null = null;
+    if (file) {
+      supportFileHash = createHash('sha256').update(file.buffer).digest('hex');
+      await mkdir(UPLOADS_DIR, { recursive: true });
+      const safeName = `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      await writeFile(join(UPLOADS_DIR, safeName), file.buffer);
+      supportFilePath = join('uploads', 'transactions', safeName);
+    }
+
+    // PAY-YYYY-NNNN — memo_id es único globalmente (mismo esquema que public.service.ts)
+    const year = new Date().getFullYear();
+    const countResult = await this.pool.query<{ n: string }>(
+      `SELECT COUNT(*) AS n FROM transactions WHERE EXTRACT(YEAR FROM created_at) = $1`,
+      [year],
+    );
+    const n = Number(countResult.rows[0]?.n ?? 0) + 1;
+    const memoId = `PAY-${year}-${String(n).padStart(4, '0')}`;
+
+    const result = await this.pool.query<{ id: string; created_at: Date }>(
+      `INSERT INTO transactions
+         (organization_id, project_id, beneficiary, concept, category, amount, asset_code,
+          memo_id, tx_status, support_file_path, support_file_hash, invoice_number, tax_id,
+          invoice_date, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14)
+       RETURNING id, created_at`,
+      [
+        orgId,
+        projectId,
+        dto.beneficiary,
+        dto.concept,
+        dto.category,
+        dto.amount,
+        dto.assetCode ?? 'USDC',
+        memoId,
+        supportFilePath,
+        supportFileHash,
+        dto.invoiceNumber ?? null,
+        dto.taxId ?? null,
+        dto.invoiceDate ?? null,
+        userId,
+      ],
+    );
+
+    const txId = result.rows[0].id;
+
+    // Anclar on-chain con expense-anchor (mismo patrón que reports.service.ts)
+    const orgRow = await this.pool.query<{ wallet_address: string | null }>(
+      `SELECT wallet_address FROM organizations WHERE id = $1`,
+      [orgId],
+    );
+    const callerPublicKey =
+      orgRow.rows[0]?.wallet_address ??
+      (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
+    const receiptHash =
+      supportFileHash ?? createHash('sha256').update(`${txId}:${dto.concept}:${dto.amount}`).digest('hex');
+
+    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla
+    this.soroban
+      .anchorExpense({
+        expenseId: txId,
+        projectId,
+        amountXlm: dto.amount,
+        receiptHash,
+        callerPublicKey,
+      })
+      .then((txHash) => {
+        if (txHash) {
+          this.pool
+            .query(
+              `UPDATE transactions SET tx_hash = $1, tx_status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = $2`,
+              [txHash, txId],
+            )
+            .catch((e) => this.logger.error('tx_hash update failed', e));
+          this.logger.log(`Transaction ${txId} anchored on-chain tx=${txHash}`);
+        }
+      })
+      .catch((e) => this.logger.error('anchorExpense failed for transaction', e));
+
+    return {
+      id: txId,
+      memoId,
+      createdAt: result.rows[0].created_at.toISOString(),
+      supportFileHash,
+    };
   }
 }
