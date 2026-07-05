@@ -42,6 +42,7 @@ function toSummary(p: Project): ProjectSummary {
     beneficiariesTarget,
     beneficiariesReached,
     currentStage,
+    imageUrl,
   } = p;
   return {
     id,
@@ -54,6 +55,7 @@ function toSummary(p: Project): ProjectSummary {
     beneficiariesTarget,
     beneficiariesReached,
     currentStage,
+    imageUrl,
   };
 }
 

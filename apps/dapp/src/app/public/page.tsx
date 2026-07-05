@@ -4,14 +4,19 @@ import { ArrowRight, ShieldCheck, Wallet, Eye } from 'lucide-react';
 import fondo from '@/assets/fondodonante.jpg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ProjectCard } from '@/components/public/ProjectCard';
+import { ProjectsCarousel } from '@/components/public/ProjectsCarousel';
 import { FundUsageChart } from '@/components/public/FundUsageChart';
-import { getNgo, listProjects } from '@/server/public/repository';
+import { getNgo, listCategories, listProjects } from '@/server/public/repository';
 import { getServerT } from '@/lib/i18n/server';
 import { formatNumber, formatUsd } from '@/lib/format';
 
 export default async function PublicLandingPage() {
-  const [ngo, projects, t] = await Promise.all([getNgo(), listProjects(), getServerT()]);
+  const [ngo, projects, categories, t] = await Promise.all([
+    getNgo(),
+    listProjects(),
+    listCategories(),
+    getServerT(),
+  ]);
 
   return (
     <div>
@@ -67,23 +72,11 @@ export default async function PublicLandingPage() {
       </section>
 
       {/* OUR PROJECTS — fondo blanco */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">{t('home.projectsTitle')}</h2>
-            <p className="mt-1 text-sm text-zinc-600">{t('home.projectsSubtitle')}</p>
-          </div>
-          <Link
-            href="/public/projects"
-            className="hidden text-sm font-semibold text-blue-600 hover:underline sm:inline-flex sm:items-center sm:gap-1"
-          >
-            {t('home.viewAll')} <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.slice(0, 3).map((p) => (
-            <ProjectCard key={p.id} project={p} />
-          ))}
+      <section className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6">
+        <h2 className="text-2xl font-bold tracking-tight text-zinc-900">{t('home.projectsTitle')}</h2>
+        <p className="mx-auto mt-1 max-w-xl text-sm text-zinc-600">{t('home.projectsSubtitle')}</p>
+        <div className="mt-8">
+          <ProjectsCarousel projects={projects} categories={categories} />
         </div>
       </section>
 
