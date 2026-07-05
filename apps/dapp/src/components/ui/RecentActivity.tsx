@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ShieldCheck, ArrowUpRight, Receipt, ExternalLink } from 'lucide-react';
+import { explorerTxUrl } from '@/lib/stellar-explorer';
 import { ActivityEvent } from '@/types/dashboard';
 
 interface RecentActivityProps {
@@ -58,7 +59,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ events }) => {
                     <span className="text-xs text-slate-600 dark:text-slate-500">{formatWhen(e.timestamp)}</span>
                     {e.txHash && (
                       <a
-                        href={`https://stellar.expert/explorer/testnet/tx/${e.txHash}`}
+                        href={explorerTxUrl(e.txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"

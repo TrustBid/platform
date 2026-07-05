@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { authHeaders, getJwt } from '@/lib/auth/sep10';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 export interface Report {
   id: string;
@@ -19,6 +19,8 @@ export interface Report {
   milestoneProgress: number | null;
   submittedAt: string | null;
   createdAt: string;
+  anchorTxHash?: string | null;
+  blockchainStatus?: string | null;
 }
 
 export interface CreateReportInput {

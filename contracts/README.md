@@ -1,5 +1,7 @@
 # TrustBid — Contratos Soroban
 
+> **Monorepo:** este código vive em [`TrustBid/platform/contracts/`](https://github.com/TrustBid/platform/tree/main/contracts). O repositório `TrustBid/contracts` foi arquivado.
+
 Capa de trazabilidad on-chain de TrustBid. Tres contratos Soroban (Stellar) que registran de forma inmutable la asignación de fondos, los gastos aprobados y los badges de reputación de las organizaciones.
 
 ---
@@ -190,7 +192,7 @@ contracts/
 
 - **Rust** (vía rustup, no Homebrew): [https://rustup.rs](https://rustup.rs)
 - **Target WASM** para Soroban SDK 22: `wasm32v1-none`
-- **Stellar CLI**: `cargo install stellar-cli --version 22.0.1`
+- **Stellar CLI**: `cargo install stellar-cli --version 23.0.0` (Caatinga floor ≥23)
 
 ```bash
 # Agregar el target correcto
@@ -287,6 +289,18 @@ Documentación completa en [AUDIT.md](AUDIT.md). Resumen:
 4. **TTL / archival:** storage `persistent` sin `extend_ttl` puede archivarse según política de la red.
 5. **IDs de 12 chars:** convención backend sobre UUIDs; riesgo de colisión si no se garantiza unicidad del sufijo.
 6. **Sin eventos en `fund-tracker`:** indexadores deben hacer polling.
+
+---
+
+## Decisiones de integración (backend ↔ contratos)
+
+| Decisión | Política actual | Notas |
+|---|---|---|
+| **UUID → Symbol** | Últimos 12 chars del UUID sin guiones | Implementado en `SorobanService`; riesgo de colisión teórico documentado en [AUDIT.md](AUDIT.md) |
+| **`initialize` double-init** | `fund-tracker` / `expense-anchor`: permitido (sobrescribe Admin); `sbt-badge`: panic | Caatinga `postDeploy` llama `initialize` una vez; redeploy requiere nueva instancia para sbt-badge |
+| **Upgrade in-place** | No soportado | Ningún contrato expone `upgrade(new_wasm_hash)`; upgrades requieren redeploy + nuevo `contractId` |
+| **Validación de amounts** | No on-chain | Montos negativos/cero aceptados hoy; validación en API antes de invoke |
+| **Auth model** | `caller.require_auth()` en writes | API firma con `STELLAR_SERVER_SECRET`; `organization`/`submitted_by` = signer on-chain |
 
 ---
 

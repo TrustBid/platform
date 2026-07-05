@@ -1,7 +1,8 @@
 {
   "generators": {
     "address": 3,
-    "nonce": 0
+    "nonce": 0,
+    "mux_id": 0
   },
   "auth": [
     [],
@@ -71,7 +72,7 @@
     []
   ],
   "ledger": {
-    "protocol_version": 22,
+    "protocol_version": 23,
     "sequence_number": 0,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -90,7 +91,7 @@
                   "symbol": "BadgeById"
                 },
                 {
-                  "u64": 1
+                  "u64": "1"
                 }
               ]
             },
@@ -110,7 +111,7 @@
                       "symbol": "BadgeById"
                     },
                     {
-                      "u64": 1
+                      "u64": "1"
                     }
                   ]
                 },
@@ -130,7 +131,7 @@
                         "symbol": "issued_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -146,7 +147,7 @@
                         "symbol": "revoked_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -166,7 +167,7 @@
                         "symbol": "token_id"
                       },
                       "val": {
-                        "u64": 1
+                        "u64": "1"
                       }
                     }
                   ]
@@ -188,7 +189,7 @@
                   "symbol": "BadgeById"
                 },
                 {
-                  "u64": 2
+                  "u64": "2"
                 }
               ]
             },
@@ -208,7 +209,7 @@
                       "symbol": "BadgeById"
                     },
                     {
-                      "u64": 2
+                      "u64": "2"
                     }
                   ]
                 },
@@ -228,7 +229,7 @@
                         "symbol": "issued_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -244,7 +245,7 @@
                         "symbol": "revoked_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -264,7 +265,7 @@
                         "symbol": "token_id"
                       },
                       "val": {
-                        "u64": 2
+                        "u64": "2"
                       }
                     }
                   ]
@@ -314,10 +315,10 @@
                 "val": {
                   "vec": [
                     {
-                      "u64": 1
+                      "u64": "1"
                     },
                     {
-                      "u64": 2
+                      "u64": "2"
                     }
                   ]
                 }
@@ -372,7 +373,7 @@
                           ]
                         },
                         "val": {
-                          "u64": 3
+                          "u64": "3"
                         }
                       }
                     ]
@@ -391,7 +392,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 801925984706572462
+                "nonce": "801925984706572462"
               }
             },
             "durability": "temporary"
@@ -406,7 +407,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 801925984706572462
+                    "nonce": "801925984706572462"
                   }
                 },
                 "durability": "temporary",
@@ -424,7 +425,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 1033654523790656264
+                "nonce": "1033654523790656264"
               }
             },
             "durability": "temporary"
@@ -439,7 +440,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 1033654523790656264
+                    "nonce": "1033654523790656264"
                   }
                 },
                 "durability": "temporary",
@@ -457,7 +458,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 5541220902715666415
+                "nonce": "5541220902715666415"
               }
             },
             "durability": "temporary"
@@ -472,7 +473,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 5541220902715666415
+                    "nonce": "5541220902715666415"
                   }
                 },
                 "durability": "temporary",

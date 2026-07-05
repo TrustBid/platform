@@ -35,6 +35,22 @@ export class ProjectsController {
     return this.projectsService.getTransactions(id, orgId);
   }
 
+  @Get(':id/on-chain')
+  getOnChain(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getOnChainAllocation(id, orgId);
+  }
+
+  @Get(':id/pipeline-stages')
+  getPipelineStages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getPipelineStages(id, orgId);
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,

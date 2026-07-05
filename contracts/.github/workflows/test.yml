@@ -27,7 +27,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Stellar CLI
-        run: cargo install stellar-cli --version 22.0.1 --locked
+        run: cargo install stellar-cli --version 23.0.0 --locked
 
       - name: Run tests
         run: cargo test --workspace

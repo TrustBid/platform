@@ -1,0 +1,42 @@
+{
+  "project": "trustbid",
+  "networks": {
+    "testnet": {
+      "contracts": {
+        "fund-tracker": {
+          "contractId": "CC6OJ26655KKLDZB6HXBV2IN4WWU7GMU57IX7WQSF3SKAEJRMAPQVHYS",
+          "wasmHash": "e2d972627fc5070bfcc6a447ab87919f10687df82c4293203c2d1c5849a3d62d",
+          "deployedAt": "2026-07-04T21:04:56.119Z",
+          "sourcePath": "./contracts/contracts/fund-tracker",
+          "wasmPath": "./contracts/target/wasm32v1-none/release/fund_tracker.wasm",
+          "dependencies": [],
+          "resolvedDeployArgs": {}
+        },
+        "expense-anchor": {
+          "contractId": "CABW2KK4CRLHOB4GATGIT2MDGE3HLTDTI5YZOFOQHGLONQTNU3MYYOAW",
+          "wasmHash": "9507405a2d7125eeaccc16332e1c354a2d74defd88ca3f13c9fbe358195cdede",
+          "deployedAt": "2026-07-04T21:05:04.773Z",
+          "sourcePath": "./contracts/contracts/expense-anchor",
+          "wasmPath": "./contracts/target/wasm32v1-none/release/expense_anchor.wasm",
+          "dependencies": [],
+          "resolvedDeployArgs": {}
+        },
+        "sbt-badge": {
+          "contractId": "CCBTM23SCCOEA7Y55DL4ENJNWID7OATWB7RXHAS7MD6CQHW3PMG4CDNK",
+          "wasmHash": "2a91bd5ac87dd5b888e681bf152c105eac8068a579ddd2cec397f4ecfa0f8377",
+          "deployedAt": "2026-07-04T21:05:10.545Z",
+          "sourcePath": "./contracts/contracts/sbt-badge",
+          "wasmPath": "./contracts/target/wasm32v1-none/release/sbt_badge.wasm",
+          "dependencies": [],
+          "resolvedDeployArgs": {}
+        }
+      },
+      "dependencyGraph": {
+        "fund-tracker": [],
+        "expense-anchor": [],
+        "sbt-badge": []
+      }
+    }
+  },
+  "version": 2
+}

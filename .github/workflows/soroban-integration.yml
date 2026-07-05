@@ -1,0 +1,63 @@
+name: Soroban integration (testnet)
+
+# Manual gate — requires testnet signer secrets (see AGENTS.md).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Install Stellar CLI
+        run: cargo install stellar-cli --version 23.0.0 --locked
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore Stellar CLI identity
+        env:
+          CAATINGA_CI_STELLAR_CONFIG_B64: ${{ secrets.CAATINGA_CI_STELLAR_CONFIG_B64 }}
+        run: |
+          if [ -z "$CAATINGA_CI_STELLAR_CONFIG_B64" ]; then
+            echo "No CAATINGA_CI_STELLAR_CONFIG_B64 — using STELLAR_SERVER_SECRET only"
+            exit 0
+          fi
+          mkdir -p "$HOME/ci-stellar"
+          echo "$CAATINGA_CI_STELLAR_CONFIG_B64" | base64 -d | tar -xzf - -C "$HOME/ci-stellar"
+          mkdir -p "$HOME/.config"
+          cp -R "$HOME/ci-stellar/.config/"* "$HOME/.config/"
+
+      - name: Caatinga doctor --strict
+        env:
+          CAATINGA_SOURCE: ${{ secrets.CAATINGA_CI_IDENTITY_ALIAS }}
+        run: npx caatinga doctor --network testnet --source "${CAATINGA_SOURCE:-trustbid}" --strict
+
+      - name: Run integration suite
+        env:
+          CAATINGA_SOURCE: ${{ secrets.CAATINGA_CI_IDENTITY_ALIAS }}
+          STELLAR_SERVER_SECRET: ${{ secrets.STELLAR_SERVER_SECRET }}
+        run: |
+          mkdir -p docs/test-runs
+          npm run contracts:integration 2>&1 | tee docs/test-runs/ci-integration.log
+
+      - name: Upload integration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soroban-integration-logs
+          path: docs/test-runs/ci-integration.log
+          retention-days: 14

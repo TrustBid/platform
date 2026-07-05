@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { formatUsd } from '@/lib/format';
-import { explorerTxUrl, shortCode } from '@/lib/stellar-explorer';
+import { explorerTxUrl, shortCode, STELLAR_NETWORK } from '@/lib/stellar-explorer';
 import { submitDonation, getDonationStatus } from '@/lib/api/public';
 import { useLanguage } from '@/lib/i18n/LanguageProvider';
 import { connectWalletWithModal } from '@/lib/wallet/adapter';
@@ -128,7 +128,7 @@ export function DonateFlow({ project }: { project: ProjectLite }) {
       if (!project.recipientAddress) throw new Error('NO_RECIPIENT');
 
       // Pago REAL en Stellar testnet: donante → dirección de la org.
-      const client = new StellarClient('testnet');
+      const client = new StellarClient(STELLAR_NETWORK);
       // Si la cuenta del donante no existe aún en testnet, la fondeamos (friendbot).
       if (!(await client.accountExists(wallet))) {
         await client.fundTestnet(wallet);

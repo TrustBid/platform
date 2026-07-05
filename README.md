@@ -1,47 +1,79 @@
 # TrustBid Platform
 
-Monorepo principal de TrustBid — capa de transparencia y trazabilidad de fondos para ONGs sobre Stellar.
+Monorepo for TrustBid — a transparency and traceability platform for NGOs on the Stellar blockchain.
 
-## Estructura
+## Structure
 
 ```
 platform/
 ├── apps/
-│   ├── dapp/        # DApp principal — Next.js 15 + TypeScript
-│   ├── api/         # API REST — NestJS 11 + PostgreSQL (Neon)
-│   ├── landing/     # Sitio de marketing — React + Vite
-│   └── docs-site/   # Documentación pública — Next.js static
+│   ├── dapp/        # Main DApp — Next.js + TypeScript
+│   ├── api/         # REST API — NestJS + PostgreSQL (Neon)
+│   ├── landing/     # Marketing site — React + Vite
+│   └── docs-site/   # Public docs — Next.js static
 ├── packages/
-│   ├── types/       # Tipos TypeScript compartidos (@trustbid/types)
-│   ├── ui/          # Componentes React compartidos (@trustbid/ui)
-│   └── stellar-sdk/ # Wrappers Stellar/Soroban (@trustbid/stellar-sdk)
+│   ├── types/       # Shared TypeScript types (@trustbid/types)
+│   ├── ui/          # Shared React components (@trustbid/ui)
+│   ├── stellar-sdk/ # Stellar classic wrappers (@trustbid/stellar-sdk)
+│   └── soroban-bindings/ # Generated Soroban contract clients (@trustbid/soroban-bindings)
+├── contracts/       # Soroban smart contracts (Rust workspace)
+│   └── contracts/   # fund-tracker, expense-anchor, sbt-badge
+├── caatinga.config.ts    # Deploy orchestration (Caatinga 3.7.0)
+├── caatinga.artifacts.json
 ├── turbo.json
 └── package.json
 ```
 
-## Comandos
+## Quick Start
 
 ```bash
-npm install          # instala todas las dependencias del workspace
-
-npm run dev          # levanta dapp + api en paralelo
-npm run dev:dapp     # solo la DApp  → http://localhost:3000
-npm run dev:api      # solo la API   → http://localhost:3001
-
-npm run build        # build de todos los apps
-npm run lint         # lint de todos los packages
-npm run type-check   # type-check de todos los packages
+npm install          # install all workspace dependencies
+npm run dev          # start dapp (3000) + api (3001)
 ```
 
-## Repositorios relacionados
+## Commands
 
-| Repo | Descripción |
+```bash
+npm run build              # build all apps
+npm run lint               # lint all packages
+npm run type-check         # type-check all packages
+
+# Soroban contracts (requires Rust + Stellar CLI)
+npm run contracts:test     # cargo test --workspace
+npm run contracts:build    # stellar contract build
+npm run contracts:deploy   # caatinga deploy (testnet)
+npm run contracts:generate # generate TypeScript bindings
+npm run contracts:smoke    # read-only smoke checks
+npm run contracts:doctor   # full env diagnostics
+npm run contracts:status   # binding freshness table
+npm run contracts:integration  # full E2E (doctor + smoke + SorobanService)
+npm run contracts:regression   # full offline + testnet pipeline
+```
+
+## Soroban Contracts
+
+Three contracts in `contracts/` (Rust workspace). After testnet deploy, contract IDs are passed to the API via env vars or `caatinga.artifacts.json`.
+
+| Contract | Purpose |
 |---|---|
-| [TrustBid/docs](https://github.com/TrustBid/docs) | Diagramas UML/C4 y documentación técnica |
-| [TrustBid/contracts](https://github.com/TrustBid/contracts) | Smart contracts Soroban (Rust) |
+| `fund-tracker` | Records fund allocation per project |
+| `expense-anchor` | Anchors SHA-256 hash of approved expense receipts |
+| `sbt-badge` | Non-transferable reputation SBTs for organizations |
 
-## Flujo de trabajo
+See `contracts/README.md` and `contracts/AUDIT.md` for on-chain details.
 
-- Ramas: `main` (producción) · `develop` (integración) · `feat/*` · `fix/*` · `chore/*`
-- Toda contribución va por PR — nunca push directo a `main`
-- Cada PR requiere al menos 1 aprobación y que pasen los checks de CI
+## Related Repos
+
+| Repo | Description |
+|---|---|
+| [TrustBid/docs](https://github.com/TrustBid/docs) | UML/C4 diagrams and technical documentation |
+
+> **Note:** `TrustBid/contracts` was consolidated into this monorepo (`platform/contracts/`). The old repo is archived.
+
+## Workflow
+
+- Branches: `main` (production) · `develop` (integration) · `feat/*` · `fix/*` · `chore/*`
+- All contributions go through PR — never push directly to `main`
+- Each PR requires at least 1 approval and passing CI checks
+
+For detailed agent instructions, see [AGENTS.md](./AGENTS.md).

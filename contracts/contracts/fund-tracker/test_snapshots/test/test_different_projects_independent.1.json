@@ -1,7 +1,8 @@
 {
   "generators": {
     "address": 2,
-    "nonce": 0
+    "nonce": 0,
+    "mux_id": 0
   },
   "auth": [
     [],
@@ -40,10 +41,7 @@
                   "symbol": "projA"
                 },
                 {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 1000000000
-                  }
+                  "i128": "1000000000"
                 }
               ]
             }
@@ -68,10 +66,7 @@
                   "symbol": "projB"
                 },
                 {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 2000000000
-                  }
+                  "i128": "2000000000"
                 }
               ]
             }
@@ -84,7 +79,7 @@
     []
   ],
   "ledger": {
-    "protocol_version": 22,
+    "protocol_version": 23,
     "sequence_number": 0,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -135,7 +130,7 @@
                         "symbol": "allocated_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -143,10 +138,7 @@
                         "symbol": "amount_xlm"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000000000
-                        }
+                        "i128": "1000000000"
                       }
                     },
                     {
@@ -216,7 +208,7 @@
                         "symbol": "allocated_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -224,10 +216,7 @@
                         "symbol": "amount_xlm"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000000000
-                        }
+                        "i128": "2000000000"
                       }
                     },
                     {
@@ -306,7 +295,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 801925984706572462
+                "nonce": "801925984706572462"
               }
             },
             "durability": "temporary"
@@ -321,7 +310,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 801925984706572462
+                    "nonce": "801925984706572462"
                   }
                 },
                 "durability": "temporary",
@@ -339,7 +328,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 1033654523790656264
+                "nonce": "1033654523790656264"
               }
             },
             "durability": "temporary"
@@ -354,7 +343,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 1033654523790656264
+                    "nonce": "1033654523790656264"
                   }
                 },
                 "durability": "temporary",
@@ -372,7 +361,7 @@
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
-                "nonce": 5541220902715666415
+                "nonce": "5541220902715666415"
               }
             },
             "durability": "temporary"
@@ -387,7 +376,7 @@
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
-                    "nonce": 5541220902715666415
+                    "nonce": "5541220902715666415"
                   }
                 },
                 "durability": "temporary",

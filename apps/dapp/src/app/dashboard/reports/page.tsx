@@ -11,6 +11,7 @@ import { ModeToggle } from '@/components/ui/mode-toggle';
 import { FileText, Plus, ArrowRight, ArrowLeft, CheckCircle, Upload, Eye, BarChart2 } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
 import { useReports, type CreateReportInput } from '@/hooks/useReports';
+import { BlockchainAnchorBadge } from '@/components/blockchain/BlockchainAnchorBadge';
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
   financial: 'Reporte Financiero',
@@ -135,7 +136,7 @@ export default function ReportsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  {['Título', 'Proyecto', 'Tipo', 'Período', 'Estado'].map((h) => (
+                  {['Título', 'Proyecto', 'Tipo', 'Período', 'Estado', 'Blockchain'].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{h}</th>
                   ))}
                 </tr>
@@ -151,6 +152,13 @@ export default function ReportsPage() {
                       <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400">
                         {STATUS_LABELS[r.status] ?? r.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <BlockchainAnchorBadge
+                        txHash={r.anchorTxHash}
+                        status={r.blockchainStatus}
+                        label=""
+                      />
                     </td>
                   </tr>
                 ))}
