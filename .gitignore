@@ -10,6 +10,9 @@ out
 build
 .turbo
 
+# archivos subidos localmente (comprobantes de transacciones, etc.)
+apps/api/uploads
+
 # env
 .env
 .env.local

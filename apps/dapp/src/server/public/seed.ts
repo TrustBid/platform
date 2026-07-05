@@ -38,6 +38,7 @@ export const PROJECTS: Project[] = [
     category: 'Education',
     status: 'active',
     summary: 'Construcción y equipamiento de aulas para 320 niños en zona rural.',
+    imageUrl: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=800&auto=format&fit=crop',
     description:
       'Construcción de 6 aulas, sanitarios y biblioteca para la comunidad de San Pedro, más equipamiento y materiales para el ciclo lectivo. Beneficia directamente a 320 niños y a sus familias.',
     currency: 'USDC',
@@ -94,6 +95,7 @@ export const PROJECTS: Project[] = [
     category: 'Infrastructure',
     status: 'active',
     summary: 'Pozos y red de agua potable para 1.200 personas.',
+    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=800&auto=format&fit=crop',
     description:
       'Perforación de 3 pozos, tendido de red y tanques de almacenamiento para garantizar agua potable a la Comunidad Norte. Incluye capacitación para el mantenimiento local.',
     currency: 'USDC',
@@ -140,6 +142,7 @@ export const PROJECTS: Project[] = [
     category: 'Health',
     status: 'completed',
     summary: 'Brigadas médicas móviles para 3 comunidades aisladas.',
+    imageUrl: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=800&auto=format&fit=crop',
     description:
       'Unidad médica móvil con atención primaria, vacunación y controles para comunidades sin acceso a centros de salud. Proyecto finalizado y verificado.',
     currency: 'USDC',

@@ -100,6 +100,7 @@ export class PublicService {
       current_stage: string | null;
       beneficiaries_target: string;
       beneficiaries_reached: string;
+      image_url: string | null;
     }>(
       `SELECT
          p.id,
@@ -109,6 +110,7 @@ export class PublicService {
          p.description,
          p.budget_amount,
          p.spent_amount,
+         p.image_url,
          (
            SELECT ps.name
            FROM pipeline_stages ps
@@ -145,6 +147,7 @@ export class PublicService {
       beneficiariesTarget: Number(r.beneficiaries_target),
       beneficiariesReached: Number(r.beneficiaries_reached),
       currentStage: r.current_stage ?? '',
+      imageUrl: r.image_url,
     }));
   }
 
@@ -166,6 +169,7 @@ export class PublicService {
           beneficiaries_target: string;
           beneficiaries_reached: string;
           recipient_address: string | null;
+          image_url: string | null;
         }>(
           `SELECT
              p.id,
@@ -176,6 +180,7 @@ export class PublicService {
              p.budget_amount,
              p.spent_amount,
              p.budget_asset,
+             p.image_url,
              (
                SELECT ps.name
                FROM pipeline_stages ps
@@ -312,6 +317,7 @@ export class PublicService {
       beneficiariesTarget: Number(project.beneficiaries_target),
       beneficiariesReached: Number(project.beneficiaries_reached),
       currentStage: project.current_stage ?? '',
+      imageUrl: project.image_url,
       recipientAddress: project.recipient_address,
       pipeline,
       traceability,
