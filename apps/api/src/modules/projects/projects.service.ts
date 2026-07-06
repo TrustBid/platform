@@ -9,6 +9,9 @@ import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
 import type { CreateTransactionDto } from './dto/create-transaction.dto';
 
+/** Roles con autoridad de aprobación: su carga directa se auto-autoriza y ancla al instante. */
+const APPROVER_ROLES = ['admin', 'admin_regional', 'auditor'];
+
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
@@ -382,6 +385,7 @@ export class ProjectsService {
   async createTransaction(
     orgId: string,
     userId: string,
+    creatorRole: string,
     projectId: string,
     dto: CreateTransactionDto,
     file?: Express.Multer.File,
@@ -474,19 +478,91 @@ export class ProjectsService {
     );
 
     const txId = result.rows[0].id;
-    this.logger.log(
-      `Transaction ${txId} creada (pending) settlement=${settlementType} ai_match=${aiMatch}`,
-    );
+
+    // Un rol con autoridad de aprobación (admin) que carga la factura DIRECTO se
+    // auto-autoriza → se ancla al instante (Flujo 1, dashboard). Si la crea otro
+    // (voluntario por bot, contador) queda `pending` y requiere que un aprobador
+    // DISTINTO la valide (doble control — Flujo 2).
+    const selfAuthorized = APPROVER_ROLES.includes(creatorRole);
+    if (selfAuthorized) {
+      await this.pool.query(
+        `UPDATE transactions
+            SET tx_status = 'submitted', approved_by = $1, approved_at = CURRENT_TIMESTAMP
+          WHERE id = $2`,
+        [userId, txId],
+      );
+      this.anchorTransactionAsync({
+        txId,
+        projectId,
+        orgId,
+        amount: dto.amount,
+        concept: dto.concept,
+        supportFileHash,
+      });
+      this.logger.log(`Transaction ${txId} creada por ${creatorRole} → auto-anclando (self-authorized)`);
+    } else {
+      this.logger.log(`Transaction ${txId} creada (pending, requiere aprobación) por ${creatorRole}`);
+    }
 
     return {
       id: txId,
       memoId,
-      status: 'pending',
+      status: selfAuthorized ? 'submitted' : 'pending',
       createdAt: result.rows[0].created_at.toISOString(),
       supportFileHash,
       settlementType,
       ai: { amount: aiAmount, match: aiMatch, confidence: aiConfidence, flags: aiFlags },
     };
+  }
+
+  /**
+   * Anclaje on-chain fire-and-forget (expense-anchor) + actualización de estado.
+   * Reusado por el auto-anclaje del admin (createTransaction) y por approveTransaction.
+   */
+  private anchorTransactionAsync(opts: {
+    txId: string;
+    projectId: string;
+    orgId: string;
+    amount: number;
+    concept: string;
+    supportFileHash: string | null;
+  }): void {
+    this.pool
+      .query<{ wallet_address: string | null }>(
+        `SELECT wallet_address FROM organizations WHERE id = $1`,
+        [opts.orgId],
+      )
+      .then((orgRow) => {
+        const callerPublicKey =
+          orgRow.rows[0]?.wallet_address ??
+          (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
+        const receiptHash =
+          opts.supportFileHash ??
+          createHash('sha256').update(`${opts.txId}:${opts.concept}:${opts.amount}`).digest('hex');
+        return this.soroban.anchorExpenseWithRetry({
+          expenseId: opts.txId,
+          projectId: opts.projectId,
+          amountXlm: opts.amount,
+          receiptHash,
+          callerPublicKey,
+        });
+      })
+      .then((txHash) => {
+        if (txHash) {
+          this.pool
+            .query(
+              `UPDATE transactions SET tx_hash = $1, tx_status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = $2`,
+              [txHash, opts.txId],
+            )
+            .catch((e) => this.logger.error('tx_hash update failed', e));
+          this.logger.log(`Transaction ${opts.txId} anchored on-chain tx=${txHash}`);
+        } else {
+          this.pool
+            .query(`UPDATE transactions SET tx_status = 'failed' WHERE id = $1`, [opts.txId])
+            .catch((e) => this.logger.error('tx_status failed update error', e));
+        }
+      })
+      .catch((e) => this.logger.error('anchorTransactionAsync failed', e));
   }
 
   /**
@@ -534,42 +610,14 @@ export class ProjectsService {
       [approverUserId, txId],
     );
 
-    const amount = Number(tx.amount);
-    const orgRow = await this.pool.query<{ wallet_address: string | null }>(
-      `SELECT wallet_address FROM organizations WHERE id = $1`,
-      [orgId],
-    );
-    const callerPublicKey =
-      orgRow.rows[0]?.wallet_address ??
-      (process.env.STELLAR_SERVER_PUBLIC_KEY ?? 'GAOJ53SVIVOVP4O376PZBPTZRWHC5ML5JV4PSV26GT56MQSRR2J25EQO');
-    const receiptHash =
-      tx.support_file_hash ?? createHash('sha256').update(`${txId}:${tx.concept}:${amount}`).digest('hex');
-
-    // Fire-and-forget: no bloqueamos la respuesta si Soroban falla.
-    this.soroban
-      .anchorExpenseWithRetry({
-        expenseId: txId,
-        projectId,
-        amountXlm: amount,
-        receiptHash,
-        callerPublicKey,
-      })
-      .then((txHash) => {
-        if (txHash) {
-          this.pool
-            .query(
-              `UPDATE transactions SET tx_hash = $1, tx_status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = $2`,
-              [txHash, txId],
-            )
-            .catch((e) => this.logger.error('tx_hash update failed', e));
-          this.logger.log(`Transaction ${txId} approved+anchored tx=${txHash}`);
-        } else {
-          this.pool
-            .query(`UPDATE transactions SET tx_status = 'failed' WHERE id = $1`, [txId])
-            .catch((e) => this.logger.error('tx_status failed update error', e));
-        }
-      })
-      .catch((e) => this.logger.error('anchorExpense failed on approval', e));
+    this.anchorTransactionAsync({
+      txId,
+      projectId,
+      orgId,
+      amount: Number(tx.amount),
+      concept: tx.concept,
+      supportFileHash: tx.support_file_hash,
+    });
 
     return { id: txId, status: 'submitted', approvedBy: approverUserId };
   }

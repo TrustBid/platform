@@ -90,10 +90,10 @@ export class ProjectsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CreateTransactionDto,
     @CurrentOrg() orgId: string,
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { sub: string; role: string },
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.projectsService.createTransaction(orgId, user.sub, id, body, file);
+    return this.projectsService.createTransaction(orgId, user.sub, user.role, id, body, file);
   }
 
   /** Doble control: un 2º rol aprueba y recién ahí se ancla on-chain. */

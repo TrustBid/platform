@@ -60,10 +60,13 @@ interface OcrResult {
 export function RegisterTransactionDialog({
   projectId,
   projectName,
+  canSelfApprove = false,
   onCreated,
 }: {
   projectId: string;
   projectName: string;
+  /** Si el usuario tiene rol de aprobador (admin), su carga directa se ancla al instante. */
+  canSelfApprove?: boolean;
   onCreated: () => void;
 }) {
   const router = useRouter();
@@ -494,8 +497,11 @@ export function RegisterTransactionDialog({
 
               <p className="flex items-start gap-1.5 text-xs text-amber-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Queda <strong>pendiente de aprobación</strong>. Un segundo rol (Auditor) debe aprobarla;
-                recién ahí se ancla el hash del comprobante on-chain (Stellar/Soroban).
+                {canSelfApprove ? (
+                  <>Al registrar, el hash del comprobante se <strong>ancla on-chain</strong> (Stellar/Soroban) al instante.</>
+                ) : (
+                  <>Queda <strong>pendiente de aprobación</strong>. Un aprobador (admin) debe validarla; recién ahí se ancla el hash on-chain.</>
+                )}
               </p>
               {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
@@ -514,7 +520,7 @@ export function RegisterTransactionDialog({
                   onClick={handleSubmit}
                   className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {submitting ? 'Registrando…' : 'Registrar (pendiente de aprobación)'}
+                  {submitting ? 'Registrando…' : canSelfApprove ? 'Registrar y anclar' : 'Registrar (pendiente de aprobación)'}
                 </Button>
               </div>
             </>

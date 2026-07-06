@@ -324,6 +324,7 @@ export default function ProjectDetailPage() {
               <RegisterTransactionDialog
                 projectId={project.id}
                 projectName={project.name}
+                canSelfApprove={canApprove}
                 onCreated={loadTransactions}
               />
             </CardHeader>
