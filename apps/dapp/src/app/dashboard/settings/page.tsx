@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCurrentUser, type CurrentUser } from '@/hooks/useCurrentUser';
+import { VolunteerInvites } from '@/components/dashboard/VolunteerInvites';
 import { useOrg, useOrgUsers, type Organization } from '@/hooks/useOrg';
 import { authHeaders } from '@/lib/auth/sep10';
 import { COUNTRIES, countryName } from '@/lib/countries';
@@ -49,6 +50,7 @@ const PIPELINE_TEMPLATES = [
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'users', label: 'Usuarios y roles' },
+  { id: 'volunteers', label: 'Voluntarios (WhatsApp)' },
   { id: 'areas', label: 'Áreas' },
   { id: 'pipeline', label: 'Plantillas de pipeline' },
   { id: 'integrations', label: 'Integraciones' },
@@ -75,7 +77,7 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <div className="inline-flex flex-wrap gap-1 rounded-xl border border-zinc-200 bg-zinc-100/70 p-1 dark:border-zinc-800 dark:bg-zinc-900/50">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.id !== 'volunteers' || user?.role === 'admin').map((t) => (
           <button
             key={t.id}
             type="button"
@@ -94,6 +96,7 @@ export default function SettingsPage() {
 
       {tab === 'general' && <GeneralTab user={user} org={org} onOrgSaved={refetchOrg} />}
       {tab === 'users' && <UsersTab />}
+      {tab === 'volunteers' && <VolunteerInvites />}
       {tab === 'areas' && <AreasTab />}
       {tab === 'pipeline' && <PipelineTab />}
       {tab === 'integrations' && <IntegrationsTab />}

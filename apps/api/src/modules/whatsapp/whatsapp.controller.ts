@@ -61,7 +61,11 @@ export class WhatsappController {
     for (const entry of entries) {
       const changes = (entry as { changes?: unknown[] })?.changes ?? [];
       for (const change of changes) {
-        const value = (change as { value?: { messages?: unknown[] } })?.value;
+        const value = (change as {
+          value?: { messages?: unknown[]; contacts?: { wa_id: string; profile?: { name?: string } }[] };
+        })?.value;
+        const nameByWaId = new Map<string, string | undefined>();
+        for (const c of value?.contacts ?? []) nameByWaId.set(c.wa_id, c.profile?.name);
         for (const m of value?.messages ?? []) {
           const msg = m as {
             from: string;
@@ -69,12 +73,13 @@ export class WhatsappController {
             image?: { id: string };
             text?: { body: string };
           };
+          const waName = nameByWaId.get(msg.from);
           if (msg.type === 'image' && msg.image?.id) {
-            out.push({ from: msg.from, type: 'image', imageId: msg.image.id });
+            out.push({ from: msg.from, type: 'image', imageId: msg.image.id, waName });
           } else if (msg.type === 'text' && msg.text?.body) {
-            out.push({ from: msg.from, type: 'text', text: msg.text.body });
+            out.push({ from: msg.from, type: 'text', text: msg.text.body, waName });
           } else {
-            out.push({ from: msg.from, type: 'other' });
+            out.push({ from: msg.from, type: 'other', waName });
           }
         }
       }

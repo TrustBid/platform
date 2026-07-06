@@ -5,6 +5,7 @@ import { GeminiService } from '../ai/gemini.service';
 import { ProjectsService } from '../projects/projects.service';
 import { WhatsappService } from './whatsapp.service';
 import { ConversationService } from './conversation.service';
+import { EnrollmentService } from './enrollment.service';
 
 /** Mensaje entrante normalizado desde el webhook de WhatsApp. */
 export interface IncomingMessage {
@@ -12,6 +13,7 @@ export interface IncomingMessage {
   type: 'image' | 'text' | 'other';
   imageId?: string;
   text?: string;
+  waName?: string; // nombre de perfil de WhatsApp del remitente
 }
 
 interface Enrollment {
@@ -31,9 +33,35 @@ export class BotFlowService {
     private readonly projects: ProjectsService,
     private readonly wa: WhatsappService,
     private readonly conv: ConversationService,
+    private readonly enrollmentSvc: EnrollmentService,
   ) {}
 
   async handleMessage(msg: IncomingMessage): Promise<void> {
+    // 1) Auto-enrolamiento: si el mensaje trae un código de invitación (ALTA-XXXX),
+    //    lo procesamos ANTES del check de whitelist (así un número nuevo puede darse de alta).
+    if (msg.type === 'text' && msg.text) {
+      const codeMatch = /\bALTA-[A-Z0-9]{4,}\b/i.exec(msg.text);
+      if (codeMatch) {
+        const r = await this.enrollmentSvc.tryEnrollByCode(msg.from, codeMatch[0], msg.waName);
+        if (r.reason === 'invalid') {
+          await this.wa.sendText(msg.from, 'Código de invitación inválido. Pedile el link a tu administrador.');
+        } else if (r.reason === 'expired') {
+          await this.wa.sendText(msg.from, 'Esa invitación venció. Pedile una nueva a tu administrador.');
+        } else if (r.reason === 'exhausted') {
+          await this.wa.sendText(msg.from, 'Esa invitación llegó a su límite de usos. Pedile una nueva a tu administrador.');
+        } else if (r.alreadyEnrolled) {
+          await this.wa.sendText(msg.from, `Ya estabas habilitado en ${r.orgName ?? 'tu organización'}. Enviá una *foto* de la factura.`);
+        } else {
+          await this.wa.sendText(
+            msg.from,
+            `✅ ¡Listo! Quedaste habilitado en *${r.orgName ?? 'tu organización'}* para rendir gastos.\nEnviá una *foto* de la factura para empezar.`,
+          );
+        }
+        return;
+      }
+    }
+
+    // 2) Flujo normal — requiere estar enrolado.
     const enrollment = await this.resolveEnrollment(msg.from);
     if (!enrollment || enrollment.status !== 'active') {
       await this.wa.sendText(
