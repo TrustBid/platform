@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { Pool } from 'pg';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DB_POOL } from '../../database/database.module';
 import { SorobanService } from '../soroban/soroban.service';
 import { StorageService } from '../storage/storage.service';
@@ -21,6 +22,7 @@ export class ProjectsService {
     private readonly soroban: SorobanService,
     private readonly storage: StorageService,
     private readonly gemini: GeminiService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async listByOrg(orgId: string) {
@@ -389,6 +391,7 @@ export class ProjectsService {
     projectId: string,
     dto: CreateTransactionDto,
     file?: Express.Multer.File,
+    submitterPhone?: string,
   ) {
     const project = await this.pool.query(
       `SELECT id FROM projects WHERE id = $1 AND organization_id = $2`,
@@ -450,8 +453,8 @@ export class ProjectsService {
          (organization_id, project_id, beneficiary, concept, category, amount, asset_code,
           memo_id, tx_status, support_file_hash, storage_key, invoice_number, tax_id,
           invoice_date, settlement_type, ai_extracted, ai_amount, ai_match, ai_confidence,
-          ai_flags, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          ai_flags, created_by, submitter_phone)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING id, created_at`,
       [
         orgId,
@@ -474,6 +477,7 @@ export class ProjectsService {
         aiConfidence,
         aiFlags,
         userId,
+        submitterPhone ?? null,
       ],
     );
 
@@ -547,15 +551,30 @@ export class ProjectsService {
           callerPublicKey,
         });
       })
-      .then((txHash) => {
+      .then(async (txHash) => {
         if (txHash) {
-          this.pool
+          await this.pool
             .query(
               `UPDATE transactions SET tx_hash = $1, tx_status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP WHERE id = $2`,
               [txHash, opts.txId],
             )
             .catch((e) => this.logger.error('tx_hash update failed', e));
           this.logger.log(`Transaction ${opts.txId} anchored on-chain tx=${txHash}`);
+          // Notificación al voluntario (bot WhatsApp): si la tx tiene teléfono, emitir evento.
+          const info = await this.pool
+            .query<{ submitter_phone: string | null; memo_id: string | null }>(
+              `SELECT submitter_phone, memo_id FROM transactions WHERE id = $1`,
+              [opts.txId],
+            )
+            .catch(() => null);
+          const row = info?.rows[0];
+          if (row?.submitter_phone) {
+            this.events.emit('transaction.anchored', {
+              txHash,
+              submitterPhone: row.submitter_phone,
+              memoId: row.memo_id,
+            });
+          }
         } else {
           this.pool
             .query(`UPDATE transactions SET tx_status = 'failed' WHERE id = $1`, [opts.txId])

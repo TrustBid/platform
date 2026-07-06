@@ -9,5 +9,6 @@ import { AiModule } from '../ai/ai.module';
   imports: [SorobanModule, StorageModule, AiModule],
   controllers: [ProjectsController],
   providers: [ProjectsService],
+  exports: [ProjectsService],
 })
 export class ProjectsModule {}
