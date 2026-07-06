@@ -29,7 +29,8 @@ export const dictionaries: Record<Locale, Dictionary> = {
     'footer.Proyectos': 'Proyectos',
 
     // Landing — hero
-    'hero.badge': 'Verificable de forma independiente en Stellar',
+    'hero.title': 'Welcome to TrustBid.',
+    'hero.subtitle': "Together, we're making sure every donation reaches where it's needed most.",
     'hero.viewProjects': 'Ver proyectos',
     'hero.donate': 'Donar',
     'stats.projects': 'Proyectos',
@@ -157,7 +158,8 @@ export const dictionaries: Record<Locale, Dictionary> = {
     'footer.rights': 'All rights reserved.',
 
     // Landing — hero
-    'hero.badge': 'Independently verifiable on Stellar',
+    'hero.title': 'Welcome to TrustBid.',
+    'hero.subtitle': "Together, we're making sure every donation reaches where it's needed most.",
     'hero.viewProjects': 'View projects',
     'hero.donate': 'Donate',
     'stats.projects': 'Projects',
