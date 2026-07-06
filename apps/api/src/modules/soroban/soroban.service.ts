@@ -106,8 +106,12 @@ export class SorobanService {
       const amountRaw = BigInt(Math.round(amountXlm * 1e7));
       const symId = projectId.replace(/-/g, '').slice(-12);
 
+      // El caller debe ser quien FIRMA la tx (el servidor). Las orgs usan wallets
+      // no-custodiales (login SEP-10), así que el servidor no puede firmar por ellas.
+      // Anclaje mediado por TrustBid; la atribución a la org se mantiene por project_id.
+      void callerPublicKey;
       const tx = await this.fundTracker().allocate({
-        caller: callerPublicKey,
+        caller: this.serverKeypair.publicKey(),
         project_id: symId,
         amount_xlm: amountRaw,
       });
@@ -138,8 +142,10 @@ export class SorobanService {
       const projSym = opts.projectId.replace(/-/g, '').slice(-12);
       const hashBytes = Buffer.from(opts.receiptHash, 'hex');
 
+      // caller = servidor (quien firma). Ver nota en allocateFunds.
+      void opts.callerPublicKey;
       const tx = await this.expenseAnchor().anchor({
-        caller: opts.callerPublicKey,
+        caller: this.serverKeypair.publicKey(),
         expense_id: expSym,
         project_id: projSym,
         amount_xlm: amountRaw,
