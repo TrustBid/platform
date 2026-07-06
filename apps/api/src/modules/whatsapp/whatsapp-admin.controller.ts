@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { EnrollmentService } from './enrollment.service';
@@ -20,8 +20,8 @@ export class WhatsappAdminController {
   }
 
   @Get()
-  list(@CurrentOrg() orgId: string) {
-    return this.enrollment.listInvites(orgId);
+  list(@CurrentOrg() orgId: string, @Query('projectId') projectId?: string) {
+    return this.enrollment.listInvites(orgId, projectId);
   }
 
   @Delete(':id')

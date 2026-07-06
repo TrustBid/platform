@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
+import type { BotChannel } from './bot-channel';
 
 /**
  * Cliente de la WhatsApp Cloud API (Meta Graph API).
  * Degrada con gracia: si faltan credenciales, `enabled=false` y no envía/descarga.
  */
 @Injectable()
-export class WhatsappService {
+export class WhatsappService implements BotChannel {
+  readonly kind = 'whatsapp' as const;
   private readonly logger = new Logger(WhatsappService.name);
   private readonly token?: string;
   private readonly phoneNumberId?: string;

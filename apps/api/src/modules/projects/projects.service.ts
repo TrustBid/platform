@@ -465,6 +465,7 @@ export class ProjectsService {
     dto: CreateTransactionDto,
     file?: Express.Multer.File,
     submitterPhone?: string,
+    submitterChannel?: string,
   ) {
     const project = await this.pool.query(
       `SELECT id FROM projects WHERE id = $1 AND organization_id = $2`,
@@ -526,8 +527,8 @@ export class ProjectsService {
          (organization_id, project_id, beneficiary, concept, category, amount, asset_code,
           memo_id, tx_status, support_file_hash, storage_key, invoice_number, tax_id,
           invoice_date, settlement_type, ai_extracted, ai_amount, ai_match, ai_confidence,
-          ai_flags, created_by, submitter_phone)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          ai_flags, created_by, submitter_phone, submitter_channel)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING id, created_at`,
       [
         orgId,
@@ -551,6 +552,7 @@ export class ProjectsService {
         aiFlags,
         userId,
         submitterPhone ?? null,
+        submitterChannel ?? null,
       ],
     );
 
@@ -635,8 +637,8 @@ export class ProjectsService {
           this.logger.log(`Transaction ${opts.txId} anchored on-chain tx=${txHash}`);
           // Notificación al voluntario (bot WhatsApp): si la tx tiene teléfono, emitir evento.
           const info = await this.pool
-            .query<{ submitter_phone: string | null; memo_id: string | null }>(
-              `SELECT submitter_phone, memo_id FROM transactions WHERE id = $1`,
+            .query<{ submitter_phone: string | null; submitter_channel: string | null; memo_id: string | null }>(
+              `SELECT submitter_phone, submitter_channel, memo_id FROM transactions WHERE id = $1`,
               [opts.txId],
             )
             .catch(() => null);
@@ -644,7 +646,8 @@ export class ProjectsService {
           if (row?.submitter_phone) {
             this.events.emit('transaction.anchored', {
               txHash,
-              submitterPhone: row.submitter_phone,
+              submitterUserId: row.submitter_phone,
+              submitterChannel: row.submitter_channel ?? 'whatsapp',
               memoId: row.memo_id,
             });
           }

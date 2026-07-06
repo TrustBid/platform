@@ -10,6 +10,7 @@ import { authHeaders } from '@/lib/auth/sep10';
 import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
 import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
 import { PendingApprovalsDialog } from '@/components/dashboard/PendingApprovalsDialog';
+import { ProjectInvite } from '@/components/dashboard/ProjectInvite';
 import { explorerTxUrl } from '@/lib/stellar-explorer';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
@@ -322,7 +323,10 @@ export default function ProjectDetailPage() {
               <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">
                 Transacciones{transactions.length > 0 && ` (${transactions.length})`}
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {user?.role === 'admin' && (
+                  <ProjectInvite projectId={project.id} projectName={project.name} />
+                )}
                 {canApprove && (
                   <PendingApprovalsDialog
                     projectId={project.id}

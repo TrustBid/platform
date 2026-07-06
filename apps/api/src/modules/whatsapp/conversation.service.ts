@@ -13,22 +13,22 @@ export interface ConversationState {
 }
 
 const TTL_SECONDS = 30 * 60; // 30 min
-const key = (phone: string) => `wa:conv:${phone}`;
+const key = (channel: string, userId: string) => `bot:conv:${channel}:${userId}`;
 
 @Injectable()
 export class ConversationService {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
-  async get(phone: string): Promise<ConversationState | null> {
-    const raw = await this.redis.get(key(phone));
+  async get(channel: string, userId: string): Promise<ConversationState | null> {
+    const raw = await this.redis.get(key(channel, userId));
     return raw ? (JSON.parse(raw) as ConversationState) : null;
   }
 
-  async set(phone: string, state: ConversationState): Promise<void> {
-    await this.redis.set(key(phone), JSON.stringify(state), 'EX', TTL_SECONDS);
+  async set(channel: string, userId: string, state: ConversationState): Promise<void> {
+    await this.redis.set(key(channel, userId), JSON.stringify(state), 'EX', TTL_SECONDS);
   }
 
-  async clear(phone: string): Promise<void> {
-    await this.redis.del(key(phone));
+  async clear(channel: string, userId: string): Promise<void> {
+    await this.redis.del(key(channel, userId));
   }
 }

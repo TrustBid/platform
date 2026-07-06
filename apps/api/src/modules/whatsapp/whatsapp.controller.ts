@@ -12,7 +12,8 @@ import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { WhatsappService } from './whatsapp.service';
-import { BotFlowService, IncomingMessage } from './bot-flow.service';
+import { BotFlowService } from './bot-flow.service';
+import type { IncomingMessage } from './bot-channel';
 
 @Public()
 @Controller('webhooks/whatsapp')
@@ -49,7 +50,7 @@ export class WhatsappController {
     const messages = this.extractMessages(req.body);
     // Fire-and-forget: no bloqueamos la respuesta (WhatsApp reintenta si tarda).
     for (const msg of messages) {
-      this.bot.handleMessage(msg).catch(() => undefined);
+      this.bot.handleMessage(this.wa, msg).catch(() => undefined);
     }
     return { received: true };
   }
@@ -73,13 +74,13 @@ export class WhatsappController {
             image?: { id: string };
             text?: { body: string };
           };
-          const waName = nameByWaId.get(msg.from);
+          const name = nameByWaId.get(msg.from);
           if (msg.type === 'image' && msg.image?.id) {
-            out.push({ from: msg.from, type: 'image', imageId: msg.image.id, waName });
+            out.push({ channel: 'whatsapp', userId: msg.from, type: 'image', mediaId: msg.image.id, name });
           } else if (msg.type === 'text' && msg.text?.body) {
-            out.push({ from: msg.from, type: 'text', text: msg.text.body, waName });
+            out.push({ channel: 'whatsapp', userId: msg.from, type: 'text', text: msg.text.body, name });
           } else {
-            out.push({ from: msg.from, type: 'other', waName });
+            out.push({ channel: 'whatsapp', userId: msg.from, type: 'other', name });
           }
         }
       }

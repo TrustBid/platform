@@ -2,27 +2,31 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { GeminiService } from '../ai/gemini.service';
+import type { InvoiceExtraction } from '../ai/gemini.service';
 import { ProjectsService } from '../projects/projects.service';
-import { WhatsappService } from './whatsapp.service';
 import { ConversationService } from './conversation.service';
 import { EnrollmentService } from './enrollment.service';
-
-/** Mensaje entrante normalizado desde el webhook de WhatsApp. */
-export interface IncomingMessage {
-  from: string; // teléfono del voluntario (digits, sin '+')
-  type: 'image' | 'text' | 'other';
-  imageId?: string;
-  text?: string;
-  waName?: string; // nombre de perfil de WhatsApp del remitente
-}
+import type { BotChannel, IncomingMessage } from './bot-channel';
 
 interface Enrollment {
   organization_id: string;
   user_id: string;
   status: string;
   name: string | null;
+  default_project_id: string | null;
+  default_project_name: string | null;
 }
 
+interface Media {
+  buffer: Buffer;
+  mime: string;
+}
+
+/**
+ * Orquesta el flujo del bot, común a WhatsApp y Telegram (vía BotChannel).
+ * Si el voluntario tiene proyecto por defecto (invitación por-proyecto), el gasto
+ * va directo a ese proyecto sin pedir código. Si no, se le pide el código.
+ */
 @Injectable()
 export class BotFlowService {
   private readonly logger = new Logger(BotFlowService.name);
@@ -31,170 +35,189 @@ export class BotFlowService {
     @Inject(DB_POOL) private readonly pool: Pool,
     private readonly gemini: GeminiService,
     private readonly projects: ProjectsService,
-    private readonly wa: WhatsappService,
     private readonly conv: ConversationService,
     private readonly enrollmentSvc: EnrollmentService,
   ) {}
 
-  async handleMessage(msg: IncomingMessage): Promise<void> {
-    // 1) Auto-enrolamiento: si el mensaje trae un código de invitación (ALTA-XXXX),
-    //    lo procesamos ANTES del check de whitelist (así un número nuevo puede darse de alta).
+  async handleMessage(channel: BotChannel, msg: IncomingMessage): Promise<void> {
+    // 1) Auto-enrolamiento por código (ALTA-XXXX). Matchea también "/start ALTA-XXXX" de Telegram.
     if (msg.type === 'text' && msg.text) {
       const codeMatch = /\bALTA-[A-Z0-9]{4,}\b/i.exec(msg.text);
       if (codeMatch) {
-        const r = await this.enrollmentSvc.tryEnrollByCode(msg.from, codeMatch[0], msg.waName);
+        const r = await this.enrollmentSvc.tryEnrollByCode(msg.channel, msg.userId, codeMatch[0], msg.name);
         if (r.reason === 'invalid') {
-          await this.wa.sendText(msg.from, 'Código de invitación inválido. Pedile el link a tu administrador.');
+          await channel.sendText(msg.userId, 'Código de invitación inválido. Pedile el link a tu administrador.');
         } else if (r.reason === 'expired') {
-          await this.wa.sendText(msg.from, 'Esa invitación venció. Pedile una nueva a tu administrador.');
+          await channel.sendText(msg.userId, 'Esa invitación venció. Pedile una nueva a tu administrador.');
         } else if (r.reason === 'exhausted') {
-          await this.wa.sendText(msg.from, 'Esa invitación llegó a su límite de usos. Pedile una nueva a tu administrador.');
-        } else if (r.alreadyEnrolled) {
-          await this.wa.sendText(msg.from, `Ya estabas habilitado en ${r.orgName ?? 'tu organización'}. Enviá una *foto* de la factura.`);
+          await channel.sendText(msg.userId, 'Esa invitación llegó a su límite de usos. Pedile una nueva a tu administrador.');
         } else {
-          await this.wa.sendText(
-            msg.from,
-            `✅ ¡Listo! Quedaste habilitado en *${r.orgName ?? 'tu organización'}* para rendir gastos.\nEnviá una *foto* de la factura para empezar.`,
-          );
+          const dest = r.projectName ? ` para el proyecto *${r.projectName}*` : ` en *${r.orgName ?? 'tu organización'}*`;
+          const prefix = r.alreadyEnrolled ? 'Ya estabas habilitado' : '✅ ¡Listo! Quedaste habilitado';
+          await channel.sendText(msg.userId, `${prefix}${dest}.\nEnviá una *foto* de la factura para rendir un gasto.`);
         }
         return;
       }
     }
 
     // 2) Flujo normal — requiere estar enrolado.
-    const enrollment = await this.resolveEnrollment(msg.from);
+    const enrollment = await this.resolveEnrollment(msg.channel, msg.userId);
     if (!enrollment || enrollment.status !== 'active') {
-      await this.wa.sendText(
-        msg.from,
-        'Tu número no está habilitado para rendir gastos. Pedile a tu administrador que te enrole en TrustBid.',
+      await channel.sendText(
+        msg.userId,
+        'No estás habilitado para rendir gastos. Pedile a tu administrador el link de invitación de TrustBid.',
       );
       return;
     }
 
-    if (msg.type === 'image' && msg.imageId) {
-      await this.handleImage(msg.from, msg.imageId);
-      return;
+    if (msg.type === 'image' && msg.mediaId) {
+      await this.handleImage(channel, msg, enrollment);
+    } else if (msg.type === 'text' && msg.text) {
+      await this.handleText(channel, msg, enrollment);
+    } else {
+      await channel.sendText(msg.userId, 'Enviá una *foto* de la factura para rendir el gasto.');
     }
-    if (msg.type === 'text' && msg.text) {
-      await this.handleText(msg.from, msg.text.trim(), enrollment);
-      return;
-    }
-    await this.wa.sendText(msg.from, 'Enviá una *foto* de la factura para empezar a rendir el gasto.');
   }
 
-  private async handleImage(phone: string, imageId: string): Promise<void> {
-    await this.wa.sendText(phone, '📸 Recibí la factura, la estoy leyendo…');
-    const media = await this.wa.downloadMedia(imageId);
+  private async handleImage(channel: BotChannel, msg: IncomingMessage, enrollment: Enrollment): Promise<void> {
+    await channel.sendText(msg.userId, '📸 Recibí la factura, la estoy leyendo…');
+    const media = await channel.downloadMedia(msg.mediaId!);
     if (!media) {
-      await this.wa.sendText(phone, 'No pude descargar la imagen. Probá enviarla de nuevo.');
+      await channel.sendText(msg.userId, 'No pude descargar la imagen. Probá enviarla de nuevo.');
       return;
     }
     const extraction = await this.gemini.extractInvoice(media.buffer, media.mime);
-    await this.conv.set(phone, {
+    const amount = extraction?.amount ?? null;
+
+    await this.conv.set(msg.channel, msg.userId, {
       state: 'awaiting_code',
       extraction,
-      amount: extraction?.amount ?? null,
+      amount,
       imageBase64: media.buffer.toString('base64'),
       mime: media.mime,
     });
 
+    // Con proyecto por defecto (invitación por-proyecto): si hay monto, se crea directo.
+    if (enrollment.default_project_id) {
+      if (amount != null && amount > 0) {
+        await this.createPending(channel, msg, enrollment, enrollment.default_project_id, enrollment.default_project_name ?? 'el proyecto', extraction, amount, media);
+        return;
+      }
+      await channel.sendText(
+        msg.userId,
+        `🧾 Factura de *${extraction?.vendor ?? '—'}* recibida, pero no detecté el monto.\nEscribí el monto: *monto 250*`,
+      );
+      return;
+    }
+
+    // Sin proyecto por defecto → pedir código.
     const lines = [
-      '🧾 *Datos detectados:*',
+      `🧾 *Datos detectados:*`,
       `• Proveedor: ${extraction?.vendor ?? '—'}`,
-      `• Monto: ${extraction?.amount != null ? '$ ' + extraction.amount : '— (indicá el monto: "monto 250")'}`,
+      `• Monto: ${amount != null ? '$ ' + amount : '— (indicá: "monto 250")'}`,
       `• Fecha: ${extraction?.invoiceDate ?? '—'}`,
-      `• Nº factura: ${extraction?.invoiceNumber ?? '—'}`,
       '',
-      'Respondé con el *CÓDIGO del proyecto* para registrar (ej: ESC01).',
-      'Para corregir el monto, escribí: *monto 250*',
+      'Respondé con el *CÓDIGO del proyecto* (ej: ESC01).',
+      'Para corregir el monto: *monto 250*',
     ];
-    await this.wa.sendText(phone, lines.join('\n'));
+    await channel.sendText(msg.userId, lines.join('\n'));
   }
 
-  private async handleText(phone: string, text: string, enrollment: Enrollment): Promise<void> {
-    const conv = await this.conv.get(phone);
+  private async handleText(channel: BotChannel, msg: IncomingMessage, enrollment: Enrollment): Promise<void> {
+    const conv = await this.conv.get(msg.channel, msg.userId);
     if (!conv) {
-      await this.wa.sendText(phone, 'Enviá una *foto* de la factura para empezar.');
+      await channel.sendText(msg.userId, 'Enviá una *foto* de la factura para empezar.');
       return;
     }
+    const media: Media = { buffer: Buffer.from(conv.imageBase64, 'base64'), mime: conv.mime };
 
-    // Corrección de monto: "monto 250" / "monto 250.50"
-    const m = /^monto\s+\$?\s*([0-9]+([.,][0-9]+)?)/i.exec(text);
+    // Corrección de monto: "monto 250"
+    const m = /^monto\s+\$?\s*([0-9]+([.,][0-9]+)?)/i.exec(msg.text!.trim());
     if (m) {
       const amount = Number(m[1].replace(',', '.'));
-      await this.conv.set(phone, { ...conv, amount });
-      await this.wa.sendText(phone, `✅ Monto actualizado a $ ${amount}. Ahora enviá el *código del proyecto*.`);
+      await this.conv.set(msg.channel, msg.userId, { ...conv, amount });
+      if (enrollment.default_project_id) {
+        await this.createPending(channel, msg, enrollment, enrollment.default_project_id, enrollment.default_project_name ?? 'el proyecto', conv.extraction, amount, media);
+      } else {
+        await channel.sendText(msg.userId, `✅ Monto actualizado a $ ${amount}. Ahora enviá el *código del proyecto*.`);
+      }
       return;
     }
 
-    // Si no es corrección de monto → se interpreta como código de proyecto.
+    // Interpretar como código de proyecto (flujo sin proyecto por defecto).
     const amount = conv.amount;
     if (amount == null || !(amount > 0)) {
-      await this.wa.sendText(phone, 'Falta el monto. Escribí: *monto 250* y luego el código del proyecto.');
+      await channel.sendText(msg.userId, 'Falta el monto. Escribí: *monto 250* y luego el código del proyecto.');
       return;
     }
-
-    const project = await this.resolveProject(enrollment.organization_id, text);
+    const project = await this.resolveProject(enrollment.organization_id, msg.text!.trim());
     if (!project) {
-      await this.wa.sendText(phone, `No encontré un proyecto con código *${text}*. Verificá el código con tu admin.`);
+      await channel.sendText(msg.userId, `No encontré un proyecto con código *${msg.text!.trim()}*. Verificá con tu admin.`);
       return;
     }
+    await this.createPending(channel, msg, enrollment, project.id, project.name, conv.extraction, amount, media);
+  }
 
-    const file = {
-      buffer: Buffer.from(conv.imageBase64, 'base64'),
-      mimetype: conv.mime,
-      originalname: 'factura',
-    } as Express.Multer.File;
-
+  private async createPending(
+    channel: BotChannel,
+    msg: IncomingMessage,
+    enrollment: Enrollment,
+    projectId: string,
+    projectName: string,
+    extraction: InvoiceExtraction | null,
+    amount: number,
+    media: Media,
+  ): Promise<void> {
+    const file = { buffer: media.buffer, mimetype: media.mime, originalname: 'factura' } as Express.Multer.File;
     try {
       const result = await this.projects.createTransaction(
         enrollment.organization_id,
         enrollment.user_id,
         'voluntario',
-        project.id,
+        projectId,
         {
-          beneficiary: conv.extraction?.vendor ?? 'Proveedor',
-          concept: `Gasto WhatsApp — ${conv.extraction?.vendor ?? project.name}`,
+          beneficiary: extraction?.vendor ?? 'Proveedor',
+          concept: `Gasto ${msg.channel} — ${extraction?.vendor ?? projectName}`,
           category: 'Otros',
           amount,
           settlementType: 'cash',
-          invoiceNumber: conv.extraction?.invoiceNumber ?? undefined,
-          taxId: conv.extraction?.taxId ?? undefined,
-          invoiceDate: conv.extraction?.invoiceDate ?? undefined,
+          invoiceNumber: extraction?.invoiceNumber ?? undefined,
+          taxId: extraction?.taxId ?? undefined,
+          invoiceDate: extraction?.invoiceDate ?? undefined,
         },
         file,
-        phone,
+        msg.userId, // submitter (channel_user_id)
+        msg.channel, // submitter_channel
       );
-      await this.conv.clear(phone);
-      await this.wa.sendText(
-        phone,
-        `✅ *Registrado* (${result.memoId}) en "${project.name}" por $ ${amount}.\n` +
+      await this.conv.clear(msg.channel, msg.userId);
+      await channel.sendText(
+        msg.userId,
+        `✅ *Registrado* (${result.memoId}) en "${projectName}" por $ ${amount}.\n` +
           'Queda pendiente de aprobación del administrador. Te aviso el hash on-chain cuando lo apruebe.',
       );
     } catch (err: unknown) {
       this.logger.error('createTransaction desde bot falló', err instanceof Error ? err.stack : err);
-      await this.wa.sendText(phone, 'Hubo un error registrando el gasto. Intentá de nuevo en un momento.');
+      await channel.sendText(msg.userId, 'Hubo un error registrando el gasto. Intentá de nuevo en un momento.');
     }
   }
 
-  private async resolveEnrollment(phone: string): Promise<Enrollment | null> {
-    const digits = phone.replace(/[^0-9]/g, '');
+  private async resolveEnrollment(channel: string, userId: string): Promise<Enrollment | null> {
     const res = await this.pool.query<Enrollment>(
-      `SELECT organization_id, user_id, status, name
-         FROM bot_enrollments
-        WHERE regexp_replace(phone, '[^0-9]', '', 'g') = $1
+      `SELECT be.organization_id, be.user_id, be.status, be.name, be.default_project_id,
+              p.name AS default_project_name
+         FROM bot_enrollments be
+         LEFT JOIN projects p ON p.id = be.default_project_id
+        WHERE be.channel = $1 AND be.channel_user_id = $2
         LIMIT 1`,
-      [digits],
+      [channel, userId],
     );
     return res.rows[0] ?? null;
   }
 
   private async resolveProject(orgId: string, code: string): Promise<{ id: string; name: string } | null> {
     const res = await this.pool.query<{ id: string; name: string }>(
-      `SELECT id, name FROM projects
-        WHERE organization_id = $1 AND upper(code) = upper($2)
-        LIMIT 1`,
-      [orgId, code.trim()],
+      `SELECT id, name FROM projects WHERE organization_id = $1 AND upper(code) = upper($2) LIMIT 1`,
+      [orgId, code],
     );
     return res.rows[0] ?? null;
   }
