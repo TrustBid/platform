@@ -1,0 +1,28 @@
+# Dockerfile para el backend (apps/api) en Railway.
+# Se usa SOLO en el servicio que setea RAILWAY_DOCKERFILE_PATH=Dockerfile.api
+# (no afecta a otros servicios). Build determinístico y bajo control:
+#   - Node 22 fijo (no el default cambiante de nixpacks/railpack).
+#   - Python + build tools + libudev para compilar módulos nativos (p.ej. `usb`,
+#     dep transitiva de las wallets) durante `npm ci`.
+#   - Compila los bindings Soroban (dist) antes del api.
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 make g++ pkg-config libudev-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copia el monorepo (el contexto de build es la raíz del repo).
+COPY . .
+
+# Instala todas las deps del workspace (incluye devDeps para el build).
+RUN npm ci --include=dev
+
+# Compila los bindings (genera ./dist) y luego el api (nest build → dist).
+RUN npm run build -w @trustbid/soroban-bindings \
+    && npm run build -w apps/api
+
+ENV NODE_ENV=production
+
+CMD ["node", "apps/api/dist/main.js"]

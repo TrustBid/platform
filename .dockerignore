@@ -1,0 +1,11 @@
+# Contexto de build para Dockerfile.api — excluir artefactos pesados/generados.
+node_modules
+**/node_modules
+.git
+**/dist
+**/.next
+**/.open-next
+.turbo
+**/.turbo
+contracts/target
+apps/api/uploads
