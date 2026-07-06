@@ -363,6 +363,79 @@ export class ProjectsService {
   }
 
   /**
+   * Detalle de una transacción para la vista de aprobación: datos + URL firmada
+   * de la factura en R2 + quién la cargó (nombre del creador).
+   */
+  async getTransactionDetail(orgId: string, projectId: string, txId: string) {
+    const res = await this.pool.query<{
+      id: string;
+      memo_id: string;
+      beneficiary: string;
+      concept: string;
+      category: string;
+      amount: string;
+      asset_code: string;
+      tx_status: string;
+      settlement_type: string | null;
+      ai_amount: string | null;
+      ai_match: boolean | null;
+      ai_confidence: string | null;
+      ai_flags: string | null;
+      invoice_number: string | null;
+      tax_id: string | null;
+      invoice_date: Date | null;
+      submitter_phone: string | null;
+      support_file_hash: string | null;
+      storage_key: string | null;
+      tx_hash: string | null;
+      created_at: Date;
+      creator_name: string | null;
+      creator_role: string | null;
+    }>(
+      `SELECT t.id, t.memo_id, t.beneficiary, t.concept, t.category, t.amount, t.asset_code,
+              t.tx_status, t.settlement_type, t.ai_amount, t.ai_match, t.ai_confidence, t.ai_flags,
+              t.invoice_number, t.tax_id, t.invoice_date, t.submitter_phone, t.support_file_hash,
+              t.storage_key, t.tx_hash, t.created_at, u.name AS creator_name, u.role AS creator_role
+         FROM transactions t
+         LEFT JOIN users u ON u.id = t.created_by
+        WHERE t.id = $1 AND t.project_id = $2 AND t.organization_id = $3`,
+      [txId, projectId, orgId],
+    );
+    const t = res.rows[0];
+    if (!t) {
+      throw new NotFoundException({ code: 'tx_not_found', message: 'Transacción no encontrada' });
+    }
+    const invoiceUrl = t.storage_key ? await this.storage.getSignedUrl(t.storage_key) : null;
+    return {
+      id: t.id,
+      memoId: t.memo_id,
+      beneficiary: t.beneficiary,
+      concept: t.concept,
+      category: t.category,
+      amount: Number(t.amount),
+      assetCode: t.asset_code,
+      status: t.tx_status,
+      settlementType: t.settlement_type,
+      ai: {
+        amount: t.ai_amount != null ? Number(t.ai_amount) : null,
+        match: t.ai_match,
+        confidence: t.ai_confidence != null ? Number(t.ai_confidence) : null,
+        flags: t.ai_flags,
+      },
+      invoiceNumber: t.invoice_number,
+      taxId: t.tax_id,
+      invoiceDate: t.invoice_date ? t.invoice_date.toISOString().slice(0, 10) : null,
+      submitterPhone: t.submitter_phone,
+      supportFileHash: t.support_file_hash,
+      txHash: t.tx_hash,
+      createdAt: t.created_at.toISOString(),
+      createdByName: t.creator_name,
+      createdByRole: t.creator_role,
+      invoiceUrl,
+    };
+  }
+
+  /**
    * OCR + extracción de una factura vía Gemini. No persiste nada — solo devuelve
    * los campos detectados para prellenar el formulario de "Registrar transacción".
    */

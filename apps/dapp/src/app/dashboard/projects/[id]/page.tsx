@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { authHeaders } from '@/lib/auth/sep10';
 import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
 import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
+import { PendingApprovalsDialog } from '@/components/dashboard/PendingApprovalsDialog';
 import { explorerTxUrl } from '@/lib/stellar-explorer';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
@@ -321,12 +322,22 @@ export default function ProjectDetailPage() {
               <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">
                 Transacciones{transactions.length > 0 && ` (${transactions.length})`}
               </CardTitle>
-              <RegisterTransactionDialog
-                projectId={project.id}
-                projectName={project.name}
-                canSelfApprove={canApprove}
-                onCreated={loadTransactions}
-              />
+              <div className="flex items-center gap-2">
+                {canApprove && (
+                  <PendingApprovalsDialog
+                    projectId={project.id}
+                    pending={transactions.filter((t) => t.status === 'pending')}
+                    currentUserId={user?.id}
+                    onReviewed={loadTransactions}
+                  />
+                )}
+                <RegisterTransactionDialog
+                  projectId={project.id}
+                  projectName={project.name}
+                  canSelfApprove={canApprove}
+                  onCreated={loadTransactions}
+                />
+              </div>
             </CardHeader>
             <CardContent className="pt-0">
               {transactions.length === 0 ? (

@@ -38,6 +38,16 @@ export class ProjectsController {
     return this.projectsService.getTransactions(id, orgId);
   }
 
+  /** Detalle de una transacción (revisar antes de aprobar): datos + URL de la factura. */
+  @Get(':id/transactions/:txId')
+  transactionDetail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('txId', ParseUUIDPipe) txId: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.projectsService.getTransactionDetail(orgId, id, txId);
+  }
+
   @Get(':id/on-chain')
   getOnChain(
     @Param('id', ParseUUIDPipe) id: string,
