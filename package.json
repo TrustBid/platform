@@ -7,20 +7,38 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
+    "postinstall": "npm run build -w @trustbid/soroban-bindings",
+    "dev": "turbo dev --filter=@trustbid/dapp --filter=@trustbid/api",
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "dev:dapp": "turbo dev --filter=@trustbid/dapp",
     "dev:api": "turbo dev --filter=@trustbid/api",
-    "dev:landing": "turbo dev --filter=@trustbid/landing"
+    "dev:landing": "turbo dev --filter=@trustbid/landing",
+    "dev:docs": "turbo dev --filter=@trustbid/docs-site",
+    "contracts:test": "bash scripts/contracts.sh test",
+    "contracts:build": "bash scripts/contracts.sh build",
+    "contracts:deploy": "caatinga deploy --network testnet --source trustbid",
+    "contracts:generate": "caatinga generate --network testnet && npm run build -w @trustbid/soroban-bindings",
+    "contracts:doctor": "caatinga doctor --network testnet --source trustbid",
+    "contracts:status": "caatinga status --network testnet",
+    "contracts:smoke": "caatinga smoke --network testnet --source trustbid",
+    "contracts:sync-env": "caatinga sync-env --network testnet",
+    "contracts:integration": "bash scripts/contracts-integration.sh",
+    "contracts:regression": "bash scripts/contracts-regression.sh",
+    "contracts:api-e2e": "tsx scripts/integration/api-http.ts",
+    "release:gate": "bash scripts/release-gate.sh"
   },
   "devDependencies": {
-    "turbo": "^2",
-    "typescript": "^5",
-    "prettier": "^3",
+    "@caatinga/cli": "3.7.0",
+    "@caatinga/core": "3.7.0",
+    "@stellar/stellar-sdk": "^16.0.1",
     "@typescript-eslint/eslint-plugin": "^8",
-    "@typescript-eslint/parser": "^8"
+    "@typescript-eslint/parser": "^8",
+    "prettier": "^3",
+    "tsx": "^4.19.4",
+    "turbo": "^2.10.3",
+    "typescript": "^5"
   },
   "engines": {
     "node": ">=20"

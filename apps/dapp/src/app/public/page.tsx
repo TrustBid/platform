@@ -27,14 +27,10 @@ export default async function PublicLandingPage() {
         <div className="absolute inset-0 bg-zinc-900/55" />
         <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-28 sm:px-6 sm:pb-24 sm:pt-40">
           <div className="max-w-3xl space-y-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              <ShieldCheck className="h-3.5 w-3.5 text-blue-300" />
-              {t('hero.badge')}
-            </span>
             <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-sm sm:text-5xl">
-              {ngo.name}
+              {t('hero.title')}
             </h1>
-            <p className="text-xl font-medium text-blue-200">{ngo.tagline}</p>
+            <p className="text-xl font-medium text-blue-200">{t('hero.subtitle')}</p>
             <p className="max-w-2xl text-base leading-relaxed text-white/85">{ngo.mission}</p>
             <div className="flex flex-wrap gap-3 pt-2">
               <Button

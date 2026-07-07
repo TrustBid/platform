@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
@@ -19,5 +19,13 @@ export class ReportsController {
     @CurrentUser() user: { sub: string },
   ) {
     return this.reportsService.create(orgId, user.sub, body);
+  }
+
+  @Get(':id/on-chain')
+  getOnChain(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentOrg() orgId: string,
+  ) {
+    return this.reportsService.getOnChainExpense(id, orgId);
   }
 }

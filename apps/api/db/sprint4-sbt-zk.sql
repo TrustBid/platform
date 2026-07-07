@@ -24,7 +24,7 @@ CREATE TYPE badge_type AS ENUM (
   'transparency_bronze', -- ≥3 meses de reportes compliant
   'transparency_silver', -- ≥6 meses + auditoría interna
   'transparency_gold',   -- ≥12 meses + auditoría externa aprobada
-  'audit_passed'         -- auditoría externa ad-hoc aprobada
+  -- audit_passed removido: não existe no contrato sbt-badge on-chain
 );
 
 -- Estado del ciclo de vida del SBT

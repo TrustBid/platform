@@ -7,9 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authHeaders } from '@/lib/auth/sep10';
+import { BlockchainAnchorBadge, VerifyOnChainButton } from '@/components/blockchain/BlockchainAnchorBadge';
 import { RegisterTransactionDialog } from '@/components/dashboard/RegisterTransactionDialog';
+import { PendingApprovalsDialog } from '@/components/dashboard/PendingApprovalsDialog';
+import { ProjectInvite } from '@/components/dashboard/ProjectInvite';
+import { explorerTxUrl } from '@/lib/stellar-explorer';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 const CATEGORY_LABELS: Record<string, string> = {
   infrastructure: 'Infraestructura',
@@ -30,6 +35,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 const TX_STATUS: Record<string, { label: string; color: string }> = {
   pending:   { label: 'Pendiente',  color: 'text-yellow-600 dark:text-yellow-400' },
+  submitted: { label: 'Anclando…',  color: 'text-blue-600 dark:text-blue-400' },
   confirmed: { label: 'Confirmada', color: 'text-emerald-600 dark:text-emerald-400' },
   failed:    { label: 'Fallida',    color: 'text-red-600 dark:text-red-400' },
 };
@@ -45,6 +51,8 @@ interface ProjectDetail {
   spent_amount: string;
   budget_asset: string;
   blockchain_enabled: boolean;
+  allocation_tx_hash: string | null;
+  blockchain_status: string | null;
   start_date: string | null;
   end_date: string | null;
   current_stage: string | null;
@@ -60,6 +68,9 @@ interface Transaction {
   status: string;
   executed_at: string | null;
   description: string | null;
+  settlement_type: string | null;
+  ai_match: boolean | null;
+  created_by: string | null;
 }
 
 export default function ProjectDetailPage() {
@@ -72,6 +83,12 @@ export default function ProjectDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [approvingTx, setApprovingTx] = useState<string | null>(null);
+
+  const { user } = useCurrentUser();
+  const canApprove = user?.role === 'admin' || user?.role === 'auditor';
 
   async function handleStatusChange(newStatus: string) {
     if (!project || newStatus === project.status) return;
@@ -96,6 +113,21 @@ export default function ProjectDetailPage() {
   async function loadTransactions() {
     const txRes = await fetch(`${API}/my/projects/${id}/transactions`, { headers: authHeaders() });
     if (txRes.ok) setTransactions(await txRes.json());
+  }
+
+  // Doble control: aprobar (ancla on-chain) o rechazar una transacción pendiente.
+  async function reviewTx(txId: string, action: 'approve' | 'reject') {
+    setApprovingTx(txId);
+    try {
+      const res = await fetch(`${API}/my/projects/${id}/transactions/${txId}/${action}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      });
+      if (res.status === 401) { router.push('/login'); return; }
+      await loadTransactions();
+    } finally {
+      setApprovingTx(null);
+    }
   }
 
   useEffect(() => {
@@ -171,6 +203,42 @@ export default function ProjectDetailPage() {
               </span>
             )}
           </div>
+          {project.blockchain_enabled && (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <BlockchainAnchorBadge
+                txHash={project.allocation_tx_hash}
+                status={project.blockchain_status}
+              />
+              <VerifyOnChainButton
+                verifying={verifying}
+                onVerify={async () => {
+                  setVerifying(true);
+                  setVerifyMsg(null);
+                  try {
+                    const res = await fetch(`${API}/my/projects/${id}/on-chain`, {
+                      headers: authHeaders(),
+                    });
+                    if (!res.ok) throw new Error('failed');
+                    const onChain = await res.json();
+                    if (!onChain) {
+                      setVerifyMsg('Sin datos on-chain para este proyecto.');
+                    } else {
+                      setVerifyMsg(
+                        `On-chain: ${onChain.amountXlm} XLM (ledger ${onChain.allocatedAt})`,
+                      );
+                    }
+                  } catch {
+                    setVerifyMsg('No se pudo verificar on-chain.');
+                  } finally {
+                    setVerifying(false);
+                  }
+                }}
+              />
+              {verifyMsg && (
+                <span className="text-xs text-zinc-500">{verifyMsg}</span>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             <Layers className="h-3.5 w-3.5" />
             {CATEGORY_LABELS[project.category] ?? project.category}
@@ -255,11 +323,25 @@ export default function ProjectDetailPage() {
               <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-white">
                 Transacciones{transactions.length > 0 && ` (${transactions.length})`}
               </CardTitle>
-              <RegisterTransactionDialog
-                projectId={project.id}
-                projectName={project.name}
-                onCreated={loadTransactions}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {user?.role === 'admin' && (
+                  <ProjectInvite projectId={project.id} projectName={project.name} />
+                )}
+                {canApprove && (
+                  <PendingApprovalsDialog
+                    projectId={project.id}
+                    pending={transactions.filter((t) => t.status === 'pending')}
+                    currentUserId={user?.id}
+                    onReviewed={loadTransactions}
+                  />
+                )}
+                <RegisterTransactionDialog
+                  projectId={project.id}
+                  projectName={project.name}
+                  canSelfApprove={canApprove}
+                  onCreated={loadTransactions}
+                />
+              </div>
             </CardHeader>
             <CardContent className="pt-0">
               {transactions.length === 0 ? (
@@ -271,7 +353,7 @@ export default function ProjectDetailPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                        {['ID / Memo', 'Monto', 'Estado', 'Fecha', 'Hash'].map((h) => (
+                        {['ID / Memo', 'Monto', 'Liquidación', 'Estado', 'Fecha', 'Hash', 'Acción'].map((h) => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                             {h}
                           </th>
@@ -285,7 +367,23 @@ export default function ProjectDetailPage() {
                           <tr key={tx.id} className="border-b border-zinc-100 dark:border-zinc-900 last:border-0">
                             <td className="px-3 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">{tx.memo_id}</td>
                             <td className="px-3 py-3 font-semibold text-zinc-900 dark:text-white">
-                              {Number(tx.amount).toLocaleString('es-CO')} {tx.asset_code}
+                              <span className="inline-flex items-center gap-1">
+                                {Number(tx.amount).toLocaleString('es-CO')} {tx.asset_code}
+                                {tx.ai_match === false && (
+                                  <AlertCircle className="h-3.5 w-3.5 text-red-500" aria-label="No coincide con la factura (IA)" />
+                                )}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              {tx.settlement_type === 'cash' ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                  Efectivo · atestiguado
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                  On-chain · verificable
+                                </span>
+                              )}
                             </td>
                             <td className={`px-3 py-3 text-xs font-semibold ${txStatus.color}`}>
                               {txStatus.label}
@@ -296,7 +394,7 @@ export default function ProjectDetailPage() {
                             <td className="px-3 py-3">
                               {tx.tx_hash ? (
                                 <a
-                                  href={`https://stellar.expert/explorer/testnet/tx/${tx.tx_hash}`}
+                                  href={explorerTxUrl(tx.tx_hash)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-xs font-mono"
@@ -304,6 +402,33 @@ export default function ProjectDetailPage() {
                                   {tx.tx_hash.slice(0, 8)}…
                                   <ExternalLink className="h-3 w-3" />
                                 </a>
+                              ) : (
+                                <span className="text-zinc-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              {tx.status === 'pending' && canApprove && tx.created_by !== user?.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    disabled={approvingTx === tx.id}
+                                    onClick={() => reviewTx(tx.id, 'approve')}
+                                    className="h-7 bg-emerald-600 px-2 text-xs text-white hover:bg-emerald-700"
+                                  >
+                                    {approvingTx === tx.id ? '…' : 'Aprobar'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={approvingTx === tx.id}
+                                    onClick={() => reviewTx(tx.id, 'reject')}
+                                    className="h-7 px-2 text-xs"
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              ) : tx.status === 'pending' && tx.created_by === user?.id ? (
+                                <span className="text-[11px] text-zinc-400">Tu registro · espera 2º rol</span>
                               ) : (
                                 <span className="text-zinc-400 text-xs">—</span>
                               )}

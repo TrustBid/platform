@@ -63,7 +63,7 @@ const CONSUMER_ROWS = [
 const COMPOSABLE_ITEMS = [
   "Attestation registry (public read): verify_org(address) -> Status, get_badges(address)",
   "Milestone escrow: releases funds when a TrustBid attestation confirms a milestone — any crowdfunding/grant plugs in without building their own verification logic",
-  "Reusable ZK verifier (groth16_verifier): others prove compliance without exposing data, reusing TrustBid's primitive",
+  "Reusable ZK verifier (Groth16 / BLS12-381): a planned primitive so others could prove compliance without exposing data",
 ];
 
 const SDK_DESC = [
@@ -129,7 +129,8 @@ export default function StellarEcosystemPage() {
 
       <SectionHeading level={3}>Composable primitives on Soroban</SectionHeading>
       <p className="mb-4 text-[15px] leading-relaxed text-gray-600">
-        Contracts that others call from their own contracts:
+        <em>Roadmap — planned primitives, not yet deployed.</em> Contracts that
+        others would call from their own contracts:
       </p>
       <DocList items={COMPOSABLE_ITEMS} />
 

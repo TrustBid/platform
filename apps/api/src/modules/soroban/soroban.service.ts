@@ -1,6 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { contract, Keypair, Networks } from '@stellar/stellar-sdk';
+import { Keypair, Networks, scValToNative, xdr } from '@stellar/stellar-sdk';
+import { Client as ExpenseAnchorClient } from '@trustbid/soroban-bindings/expense-anchor';
+import { Client as FundTrackerClient } from '@trustbid/soroban-bindings/fund-tracker';
+import { Client as SbtBadgeClient } from '@trustbid/soroban-bindings/sbt-badge';
+import { getContractIdsFromArtifacts } from '@trustbid/soroban-bindings';
+import { basicNodeSigner } from '@stellar/stellar-sdk/contract';
+import {
+  artifactsNetworkKey,
+  isMainnetNetwork,
+} from '../../common/utils/stellar-network';
+
+type BadgeType =
+  | 'kyb_verified'
+  | 'transparency_bronze'
+  | 'transparency_silver'
+  | 'transparency_gold';
 
 @Injectable()
 export class SorobanService {
@@ -10,7 +25,6 @@ export class SorobanService {
   private readonly serverKeypair: Keypair;
   private readonly fundTrackerId: string;
   private readonly expenseAnchorId: string;
-
   private readonly sbtBadgeId: string;
 
   constructor(private readonly config: ConfigService) {
@@ -18,28 +32,69 @@ export class SorobanService {
       config.get<string>('STELLAR_RPC_URL') ??
       'https://soroban-testnet.stellar.org';
     this.networkPassphrase =
-      config.get<string>('STELLAR_NETWORK') === 'mainnet'
+      isMainnetNetwork(config.get<string>('STELLAR_NETWORK'))
         ? Networks.PUBLIC
         : Networks.TESTNET;
     this.serverKeypair = Keypair.fromSecret(
       config.getOrThrow<string>('STELLAR_SERVER_SECRET'),
     );
-    this.fundTrackerId = config.getOrThrow<string>('FUND_TRACKER_CONTRACT_ID');
-    this.expenseAnchorId = config.getOrThrow<string>('EXPENSE_ANCHOR_CONTRACT_ID');
-    this.sbtBadgeId = config.getOrThrow<string>('SBT_BADGE_CONTRACT_ID');
+
+    const networkKey = artifactsNetworkKey(config.get<string>('STELLAR_NETWORK'));
+    const fromArtifacts = getContractIdsFromArtifacts(networkKey);
+
+    this.fundTrackerId = this.resolveContractId(
+      'FUND_TRACKER_CONTRACT_ID',
+      fromArtifacts?.fundTracker,
+    );
+    this.expenseAnchorId = this.resolveContractId(
+      'EXPENSE_ANCHOR_CONTRACT_ID',
+      fromArtifacts?.expenseAnchor,
+    );
+    this.sbtBadgeId = this.resolveContractId(
+      'SBT_BADGE_CONTRACT_ID',
+      fromArtifacts?.sbtBadge,
+    );
   }
 
-  private signer() {
-    return contract.basicNodeSigner(this.serverKeypair, this.networkPassphrase);
+  private resolveContractId(envKey: string, fromArtifacts?: string): string {
+    const fromEnv = this.config.get<string>(envKey);
+    if (fromEnv) return fromEnv;
+    if (fromArtifacts) return fromArtifacts;
+    return this.config.getOrThrow<string>(envKey);
   }
 
-  private baseOpts() {
+  private clientOptions() {
+    const { signTransaction } = basicNodeSigner(
+      this.serverKeypair,
+      this.networkPassphrase,
+    );
     return {
       publicKey: this.serverKeypair.publicKey(),
       networkPassphrase: this.networkPassphrase,
       rpcUrl: this.rpcUrl,
-      signTransaction: this.signer().signTransaction,
+      signTransaction,
     };
+  }
+
+  private fundTracker() {
+    return new FundTrackerClient({
+      contractId: this.fundTrackerId,
+      ...this.clientOptions(),
+    });
+  }
+
+  private expenseAnchor() {
+    return new ExpenseAnchorClient({
+      contractId: this.expenseAnchorId,
+      ...this.clientOptions(),
+    });
+  }
+
+  private sbtBadge() {
+    return new SbtBadgeClient({
+      contractId: this.sbtBadgeId,
+      ...this.clientOptions(),
+    });
   }
 
   async allocateFunds(
@@ -48,28 +103,28 @@ export class SorobanService {
     callerPublicKey: string,
   ): Promise<string | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.fundTrackerId,
-        ...this.baseOpts(),
-      });
-
-      // Soroban amounts use 7 decimals (stroops equivalent)
       const amountRaw = BigInt(Math.round(amountXlm * 1e7));
-      // Symbols in Soroban are max 32 chars; strip hyphens and take last 12 chars of UUID
       const symId = projectId.replace(/-/g, '').slice(-12);
 
-      const tx = await (client as any).allocate({
-        caller: callerPublicKey,
+      // El caller debe ser quien FIRMA la tx (el servidor). Las orgs usan wallets
+      // no-custodiales (login SEP-10), así que el servidor no puede firmar por ellas.
+      // Anclaje mediado por TrustBid; la atribución a la org se mantiene por project_id.
+      void callerPublicKey;
+      const tx = await this.fundTracker().allocate({
+        caller: this.serverKeypair.publicKey(),
         project_id: symId,
         amount_xlm: amountRaw,
       });
 
       const sent = await tx.signAndSend();
-      const hash: string = sent.sendTransactionResponse?.hash ?? '';
+      const hash = sent.sendTransactionResponse?.hash ?? '';
       this.logger.log(`fund-tracker.allocate tx=${hash} project=${projectId}`);
       return hash || null;
     } catch (err: unknown) {
-      this.logger.error('allocateFunds failed', err);
+      this.logger.error(
+        `allocateFunds failed projectId=${projectId} amountXlm=${amountXlm}`,
+        err instanceof Error ? err.stack : err,
+      );
       return null;
     }
   }
@@ -82,18 +137,15 @@ export class SorobanService {
     callerPublicKey: string;
   }): Promise<string | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.expenseAnchorId,
-        ...this.baseOpts(),
-      });
-
       const amountRaw = BigInt(Math.round(opts.amountXlm * 1e7));
       const expSym = opts.expenseId.replace(/-/g, '').slice(-12);
       const projSym = opts.projectId.replace(/-/g, '').slice(-12);
       const hashBytes = Buffer.from(opts.receiptHash, 'hex');
 
-      const tx = await (client as any).anchor({
-        caller: opts.callerPublicKey,
+      // caller = servidor (quien firma). Ver nota en allocateFunds.
+      void opts.callerPublicKey;
+      const tx = await this.expenseAnchor().anchor({
+        caller: this.serverKeypair.publicKey(),
         expense_id: expSym,
         project_id: projSym,
         amount_xlm: amountRaw,
@@ -101,35 +153,58 @@ export class SorobanService {
       });
 
       const sent = await tx.signAndSend();
-      const hash: string = sent.sendTransactionResponse?.hash ?? '';
+      const hash = sent.sendTransactionResponse?.hash ?? '';
       this.logger.log(`expense-anchor.anchor tx=${hash} expense=${opts.expenseId}`);
       return hash || null;
     } catch (err: unknown) {
-      this.logger.error('anchorExpense failed', err);
+      this.logger.error(
+        `anchorExpense failed expenseId=${opts.expenseId} projectId=${opts.projectId}`,
+        err instanceof Error ? err.stack : err,
+      );
       return null;
     }
   }
 
-  // ── SBT Badge ────────────────────────────────────────────────────────────
+  /** Anchor with up to `maxAttempts` retries (default 2). */
+  async anchorExpenseWithRetry(
+    opts: {
+      expenseId: string;
+      projectId: string;
+      amountXlm: number;
+      receiptHash: string;
+      callerPublicKey: string;
+    },
+    maxAttempts = 2,
+  ): Promise<string | null> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const hash = await this.anchorExpense(opts);
+      if (hash) return hash;
+      if (attempt < maxAttempts) {
+        this.logger.warn(
+          `anchorExpense retry attempt=${attempt + 1} expenseId=${opts.expenseId}`,
+        );
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    this.logger.error(
+      `anchorExpense exhausted retries expenseId=${opts.expenseId} projectId=${opts.projectId}`,
+    );
+    return null;
+  }
 
   async mintBadge(opts: {
     organization: string;
-    badgeType: 'kyb_verified' | 'transparency_bronze' | 'transparency_silver' | 'transparency_gold';
+    badgeType: BadgeType;
   }): Promise<{ tokenId: number; txHash: string } | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.sbtBadgeId,
-        ...this.baseOpts(),
-      });
-
-      const tx = await (client as any).mint_badge({
+      const tx = await this.sbtBadge().mint_badge({
         organization: opts.organization,
         badge_type: opts.badgeType,
       });
 
       const sent = await tx.signAndSend();
-      const hash: string = sent.sendTransactionResponse?.hash ?? '';
-      const tokenId = Number(sent.result ?? sent.getTransactionResponse?.result ?? 0);
+      const hash = sent.sendTransactionResponse?.hash ?? '';
+      const tokenId = this.extractU64(sent.result);
       this.logger.log(`sbt-badge.mint_badge token=${tokenId} tx=${hash} org=${opts.organization}`);
       return hash ? { tokenId, txHash: hash } : null;
     } catch (err: unknown) {
@@ -140,14 +215,9 @@ export class SorobanService {
 
   async revokeBadge(tokenId: number): Promise<string | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.sbtBadgeId,
-        ...this.baseOpts(),
-      });
-
-      const tx = await (client as any).revoke_badge({ token_id: BigInt(tokenId) });
+      const tx = await this.sbtBadge().revoke_badge({ token_id: BigInt(tokenId) });
       const sent = await tx.signAndSend();
-      const hash: string = sent.sendTransactionResponse?.hash ?? '';
+      const hash = sent.sendTransactionResponse?.hash ?? '';
       this.logger.log(`sbt-badge.revoke_badge token=${tokenId} tx=${hash}`);
       return hash || null;
     } catch (err: unknown) {
@@ -164,18 +234,17 @@ export class SorobanService {
     revokedAt: number;
   }>> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.sbtBadgeId,
-        ...this.baseOpts(),
-      });
+      const tx = await this.sbtBadge().get_badges({ organization });
+      await tx.simulate();
+      const list = tx.result ?? [];
 
-      const result = await (client as any).get_badges({ organization });
-      const list = result?.result ?? [];
-
-      return (list as any[]).map((b: any) => ({
+      return list.map((b) => ({
         tokenId: Number(b.token_id ?? 0),
-        badgeType: b.badge_type?.toString() ?? '',
-        status: b.status === 'Active' || b.status?.Active !== undefined ? 'Active' : 'Revoked',
+        badgeType: String(b.badge_type ?? ''),
+        status:
+          b.status?.tag === 'Active' || (b.status as { Active?: unknown })?.Active !== undefined
+            ? 'Active'
+            : 'Revoked',
         issuedAt: Number(b.issued_at ?? 0),
         revokedAt: Number(b.revoked_at ?? 0),
       }));
@@ -185,8 +254,6 @@ export class SorobanService {
     }
   }
 
-  // ── Métodos de lectura on-chain ───────────────────────────────────────────
-
   async readAllocation(projectId: string): Promise<{
     projectId: string;
     organization: string;
@@ -194,19 +261,15 @@ export class SorobanService {
     allocatedAt: number;
   } | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.fundTrackerId,
-        ...this.baseOpts(),
-      });
-
       const symId = projectId.replace(/-/g, '').slice(-12);
-      const result = await (client as any).get_allocation({ project_id: symId });
-      const val = result?.result?.unwrap?.() ?? result?.result ?? null;
+      const tx = await this.fundTracker().get_allocation({ project_id: symId });
+      await tx.simulate();
+      const val = tx.result ?? null;
       if (!val) return null;
 
       return {
         projectId,
-        organization: val.organization?.toString() ?? '',
+        organization: String(val.organization ?? ''),
         amountXlm: Number(val.amount_xlm ?? 0) / 1e7,
         allocatedAt: Number(val.allocated_at ?? 0),
       };
@@ -225,27 +288,38 @@ export class SorobanService {
     anchoredAt: number;
   } | null> {
     try {
-      const client = await contract.Client.from({
-        contractId: this.expenseAnchorId,
-        ...this.baseOpts(),
-      });
-
       const expSym = expenseId.replace(/-/g, '').slice(-12);
-      const result = await (client as any).get_expense({ expense_id: expSym });
-      const val = result?.result?.unwrap?.() ?? result?.result ?? null;
+      const tx = await this.expenseAnchor().get_expense({ expense_id: expSym });
+      await tx.simulate();
+      const val = tx.result ?? null;
       if (!val) return null;
+
+      const receiptRaw = val.receipt_hash;
+      const receiptHex = Buffer.isBuffer(receiptRaw)
+        ? receiptRaw.toString('hex')
+        : Buffer.from(receiptRaw as Uint8Array).toString('hex');
 
       return {
         expenseId,
-        projectId: val.project_id?.toString() ?? '',
-        submittedBy: val.submitted_by?.toString() ?? '',
+        projectId: String(val.project_id ?? ''),
+        submittedBy: String(val.submitted_by ?? ''),
         amountXlm: Number(val.amount_xlm ?? 0) / 1e7,
-        receiptHash: Buffer.from(val.receipt_hash ?? []).toString('hex'),
+        receiptHash: receiptHex,
         anchoredAt: Number(val.anchored_at ?? 0),
       };
     } catch (err: unknown) {
       this.logger.error('readExpense failed', err);
       return null;
     }
+  }
+
+  private extractU64(result: unknown): number {
+    if (result == null) return 0;
+    if (typeof result === 'bigint') return Number(result);
+    if (typeof result === 'number') return result;
+    if (result instanceof xdr.ScVal) {
+      return Number(scValToNative(result));
+    }
+    return Number(result);
   }
 }

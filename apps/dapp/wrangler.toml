@@ -1,4 +1,17 @@
+# Deploy de la dapp (Next.js 16) a Cloudflare Workers vía OpenNext.
+# La dapp es dinámica (route handlers /api/public/*, Privy, wallets) → NO es
+# export estático; se sirve con el worker generado por `opennextjs-cloudflare build`.
+#
+#   Producción : npm run deploy          (wrangler deploy)
+#   Preview dev: npm run deploy:develop   (--name trustbid-dapp-develop, no toca prod)
 name = "trustbid-dapp"
+main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next/assets"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true

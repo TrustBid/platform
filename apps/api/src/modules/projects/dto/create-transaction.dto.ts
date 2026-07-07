@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsIn,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -41,4 +42,9 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsDateString()
   invoiceDate?: string;
+
+  /** Cómo se liquidó el gasto: on_chain (pago Stellar verificable) o cash (efectivo, atestiguado). */
+  @IsOptional()
+  @IsIn(['on_chain', 'cash'])
+  settlementType?: 'on_chain' | 'cash';
 }

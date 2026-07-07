@@ -29,3 +29,10 @@ Thumbs.db
 # editors
 .vscode
 .idea
+
+# Soroban / Rust contracts
+contracts/target/
+contracts/.soroban/
+
+# Contexto de trabajo local (handoff entre sesiones/cuentas de Claude) — no commitear
+CONTEXT.md

@@ -75,13 +75,6 @@ export default function Hero() {
               <span className="block">{t.hero.titleLine1}</span>
               <span className="block">{t.hero.titleLine2}</span>
             </h1>
-
-            <a
-              href={DAPP_PUBLIC}
-              className="btn-glass inline-flex items-center px-6 sm:px-7 py-3 rounded-full text-sm sm:text-base font-semibold text-white mt-[clamp(24px,5vw,40px)]"
-            >
-              {t.hero.cta}
-            </a>
           </div>
         </div>
       </div>

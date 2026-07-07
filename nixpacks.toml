@@ -2,7 +2,13 @@
 cmds = ["npm ci --include=dev"]
 
 [phases.build]
-cmds = ["npm run build --workspace=apps/api"]
+# Los bindings Soroban (@trustbid/soroban-bindings) exponen ./dist/*.js y DEBEN
+# compilarse antes que el api (npm ci no corre su `prepare`). Sin esto, el api
+# crashea en runtime al importar los clientes de contrato.
+cmds = [
+  "npm run build --workspace=@trustbid/soroban-bindings",
+  "npm run build --workspace=apps/api",
+]
 
 [start]
 cmd = "node apps/api/dist/main.js"

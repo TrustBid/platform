@@ -6,7 +6,7 @@ import { usePrivy, useLogin } from '@privy-io/react-auth';
 import { setSession } from '@/lib/auth/sep10';
 import { PRIVY_ENABLED } from './privy-provider';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 
 interface RegistrationData {
   orgName?: string;

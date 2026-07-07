@@ -1,7 +1,6 @@
-export const runtime = 'edge';
 import { z } from 'zod';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'https://api-production-9557.up.railway.app';
+import { API_BASE_URL as API } from '@/lib/api/base-url';
 const schema = z.object({
   projectId: z.string().uuid(),
   amountUsd: z.number().positive().max(1_000_000),
