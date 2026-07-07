@@ -1,12 +1,14 @@
 import { renderToString } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import App from './App.jsx';
 import { LanguageProvider } from './i18n/LanguageProvider.jsx';
 
-// Used at build time by prerender.js to bake the page's HTML into index.html.
-export function render() {
+export function render(url = '/') {
   return renderToString(
     <LanguageProvider>
-      <App />
+      <MemoryRouter initialEntries={[url]}>
+        <App />
+      </MemoryRouter>
     </LanguageProvider>,
   );
 }

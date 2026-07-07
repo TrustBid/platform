@@ -8,4 +8,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+  ssr: {
+    noExternal: ['react-router', 'react-router-dom'],
+  },
 })

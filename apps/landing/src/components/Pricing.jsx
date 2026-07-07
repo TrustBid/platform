@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { openAccessModal } from '../lib/accessModal';
 import { useI18n } from '../i18n/LanguageContext';
 
@@ -153,12 +154,12 @@ export default function Pricing() {
 
         {/* Botones de acción inferiores */}
         <div className="flex justify-end gap-3 mb-10">
-          <a
-            href="#pricing-details"
+          <Link
+            to="/pricing"
             className="px-6 py-2.5 border border-[#0026ff] text-[#0026ff] rounded-full font-bold text-sm hover:bg-blue-50 transition-colors"
           >
-            See pricing plans
-          </a>
+            {t.pricing.viewPricing}
+          </Link>
           <button
             type="button"
             onClick={() => openAccessModal({ source: 'pricing-cta' })}
