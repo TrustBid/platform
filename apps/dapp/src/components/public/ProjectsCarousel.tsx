@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ImageOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ImageOff } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { EffectCoverflow, Navigation } from 'swiper/modules';
 
@@ -23,9 +23,18 @@ export function ProjectsCarousel({
 }) {
   const { t } = useLanguage();
   const [activeFilter, setActiveFilter] = useState('all');
-
   const filteredProjects =
     activeFilter === 'all' ? projects : projects.filter((p) => p.category === activeFilter);
+
+  // Con pocos proyectos, el "loop" nativo de Swiper no llega a generar clones
+  // de sobra (falla en combinación con coverflow + slidesPerView="auto"), por
+  // lo que directamente triplicamos la lista para que siempre haya una tarjeta
+  // visible a cada lado de la activa, arrancando centrados en la copia del medio.
+  const canLoop = filteredProjects.length > 2;
+  const displayProjects = canLoop
+    ? [...filteredProjects, ...filteredProjects, ...filteredProjects]
+    : filteredProjects;
+  const initialSlide = canLoop ? filteredProjects.length : 0;
 
   if (projects.length === 0) return null;
 
@@ -59,58 +68,80 @@ export function ProjectsCarousel({
       {filteredProjects.length === 0 ? (
         <p className="py-16 text-center text-sm text-zinc-500">{t('explorer.empty')}</p>
       ) : (
-        <Swiper
-          key={activeFilter}
-          modules={[EffectCoverflow, Navigation]}
-          effect="coverflow"
-          grabCursor
-          centeredSlides
-          slidesPerView="auto"
-          loop={filteredProjects.length > 2}
-          coverflowEffect={{ rotate: 0, stretch: -10, depth: 80, modifier: 1, slideShadows: false }}
-          navigation
-          className="projects-carousel w-full !py-4"
-        >
-          {filteredProjects.map((project) => (
-            <SwiperSlide key={project.id} className="h-[160px] w-[70px] sm:h-[200px] sm:w-[90px]">
-              {({ isActive }) => (
-                <Link href={`/public/projects/${project.id}`} className="block h-full">
-                  <div
-                    className={cn(
-                      'relative h-full w-full overflow-hidden rounded-3xl bg-zinc-100 transition-all duration-500 dark:bg-zinc-800',
-                      isActive
-                        ? 'opacity-100 shadow-[0_20px_45px_-12px_rgba(15,23,42,0.35)]'
-                        : 'opacity-50',
-                    )}
-                  >
-                    {project.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={project.imageUrl}
-                        alt={project.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-600 to-zinc-900 text-white/60">
-                        <ImageOff className="h-8 w-8" />
-                      </div>
-                    )}
-
+        <>
+          <Swiper
+            key={activeFilter}
+            modules={[EffectCoverflow, Navigation]}
+            effect="coverflow"
+            grabCursor
+            centeredSlides
+            slidesPerView="auto"
+            initialSlide={initialSlide}
+            coverflowEffect={{ rotate: 0, stretch: -20, depth: 130, modifier: 1, slideShadows: false }}
+            navigation={{ prevEl: '.projects-carousel-prev', nextEl: '.projects-carousel-next' }}
+            className="projects-carousel w-full !py-4"
+          >
+            {displayProjects.map((project, i) => (
+              <SwiperSlide
+                key={`${project.id}-${i}`}
+                className="!h-[270px] !w-[160px] sm:!h-[340px] sm:!w-[210px]"
+              >
+                {({ isActive }) => (
+                  <Link href={`/public/projects/${project.id}`} className="block h-full">
                     <div
                       className={cn(
-                        'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-5 pt-12 transition-opacity duration-300',
-                        isActive ? 'opacity-100' : 'opacity-0',
+                        'relative h-full w-full overflow-hidden rounded-3xl bg-zinc-100 transition-all duration-500 dark:bg-zinc-800',
+                        isActive
+                          ? 'opacity-100 shadow-[0_20px_45px_-12px_rgba(15,23,42,0.35)]'
+                          : 'opacity-60',
                       )}
                     >
-                      <p className="line-clamp-1 text-sm font-semibold text-white">{project.name}</p>
-                      <p className="mt-0.5 text-xs text-white/70">{project.category}</p>
+                      {project.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={project.imageUrl}
+                          alt={project.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-600 to-zinc-900 text-white/60">
+                          <ImageOff className="h-8 w-8" />
+                        </div>
+                      )}
+
+                      <div
+                        className={cn(
+                          'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-5 pt-12 transition-opacity duration-300',
+                          isActive ? 'opacity-100' : 'opacity-0',
+                        )}
+                      >
+                        <p className="line-clamp-1 text-sm font-semibold text-white">{project.name}</p>
+                        <p className="mt-0.5 text-xs text-white/70">{project.category}</p>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              )}
-            </SwiperSlide>
-          ))}
-        </Swiper>
+                  </Link>
+                )}
+              </SwiperSlide>
+            ))}
+          </Swiper>
+
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              aria-label={t('carousel.prev')}
+              className="projects-carousel-nav projects-carousel-prev flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={t('carousel.next')}
+              className="projects-carousel-nav projects-carousel-next flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

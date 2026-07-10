@@ -42,6 +42,8 @@ export const dictionaries: Record<Locale, Dictionary> = {
     'home.projectsTitle': 'Nuestros proyectos',
     'home.projectsSubtitle': 'Cada proyecto, con su trazabilidad verificable.',
     'home.viewAll': 'Ver todos',
+    'carousel.prev': 'Anterior',
+    'carousel.next': 'Siguiente',
 
     // Landing — fondos
     'funds.title': 'Cómo usamos tus fondos',
@@ -171,6 +173,8 @@ export const dictionaries: Record<Locale, Dictionary> = {
     'home.projectsTitle': 'Our projects',
     'home.projectsSubtitle': 'Every project, with verifiable traceability.',
     'home.viewAll': 'View all',
+    'carousel.prev': 'Previous',
+    'carousel.next': 'Next',
 
     // Landing — funds
     'funds.title': 'How we use your funds',
