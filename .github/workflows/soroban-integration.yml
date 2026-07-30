@@ -9,6 +9,17 @@ on:
 jobs:
   integration:
     runs-on: ubuntu-latest
+    # Config pública de testnet que `caatinga doctor --strict` exige en el entorno.
+    # No son secretos: los contract IDs están en caatinga.artifacts.json y el RPC
+    # es el público de testnet. Sin esto el doctor corta con "Status: blocked"
+    # antes de llegar a correr la suite.
+    env:
+      STELLAR_NETWORK: testnet
+      STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+      FUND_TRACKER_CONTRACT_ID: CC6OJ26655KKLDZB6HXBV2IN4WWU7GMU57IX7WQSF3SKAEJRMAPQVHYS
+      EXPENSE_ANCHOR_CONTRACT_ID: CABW2KK4CRLHOB4GATGIT2MDGE3HLTDTI5YZOFOQHGLONQTNU3MYYOAW
+      SBT_BADGE_CONTRACT_ID: CCBTM23SCCOEA7Y55DL4ENJNWID7OATWB7RXHAS7MD6CQHW3PMG4CDNK
     steps:
       - uses: actions/checkout@v4
 
