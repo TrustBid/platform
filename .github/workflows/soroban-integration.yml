@@ -77,6 +77,10 @@ jobs:
           CAATINGA_SOURCE: ${{ secrets.CAATINGA_CI_IDENTITY_ALIAS }}
           STELLAR_SERVER_SECRET: ${{ secrets.STELLAR_SERVER_SECRET }}
         run: |
+          # `set -o pipefail` es OBLIGATORIO acá: sin él el estado de salida del
+          # pipe es el de `tee` (siempre 0), así que la suite podía fallar y el
+          # job igual quedaba en verde. Falso verde = peor que rojo.
+          set -o pipefail
           mkdir -p docs/test-runs
           npm run contracts:integration 2>&1 | tee docs/test-runs/ci-integration.log
 
