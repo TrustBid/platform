@@ -2,18 +2,18 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://trustbid-landing.pages.dev/</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://trustbid-landing.pages.dev/" />
-    <xhtml:link rel="alternate" hreflang="es" href="https://trustbid-landing.pages.dev/" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://trustbid-landing.pages.dev/" />
+    <loc>https://trustbid.org/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://trustbid.org/" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://trustbid.org/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://trustbid.org/" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://trustbid-landing.pages.dev/pricing</loc>
-    <xhtml:link rel="alternate" hreflang="en" href="https://trustbid-landing.pages.dev/pricing" />
-    <xhtml:link rel="alternate" hreflang="es" href="https://trustbid-landing.pages.dev/pricing" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://trustbid-landing.pages.dev/pricing" />
+    <loc>https://trustbid.org/pricing</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://trustbid.org/pricing" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://trustbid.org/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://trustbid.org/pricing" />
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>

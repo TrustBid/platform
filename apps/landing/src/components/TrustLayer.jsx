@@ -3,7 +3,7 @@
 import patternBg from "../assets/Layer.webp";
 import { useI18n } from "../i18n/LanguageContext";
 
-const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app';
+const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://app.trustbid.org';
 
 export default function TrustLayer() {
   const { t } = useI18n();

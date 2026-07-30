@@ -6,7 +6,7 @@ import motionPattern from '../assets/motion-pattern.webp';
 
 const DAPP_REGISTER = import.meta.env.VITE_DAPP_URL
   ? `${import.meta.env.VITE_DAPP_URL}/register`
-  : 'https://dapp-production-52e7.up.railway.app/register';
+  : 'https://app.trustbid.org/register';
 
 const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || 'mdarorkz';
 const ENDPOINT = `https://formspree.io/f/${FORMSPREE_ID}`;

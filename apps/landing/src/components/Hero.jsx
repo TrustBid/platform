@@ -5,7 +5,7 @@ import logoGradient from '../assets/logoGradient.webp';
 import Navbar from './Navbar';
 import { useI18n } from '../i18n/LanguageContext';
 
-const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://dapp-production-52e7.up.railway.app';
+const DAPP_BASE = import.meta.env.VITE_DAPP_URL || 'https://app.trustbid.org';
 const DAPP_PUBLIC = `${DAPP_BASE}/public`;
 
 export default function Hero() {
