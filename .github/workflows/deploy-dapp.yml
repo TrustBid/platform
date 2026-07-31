@@ -1,0 +1,92 @@
+name: Deploy dapp to Cloudflare Workers
+
+# La dapp es dinámica (route handlers, Privy, wallets) → NO es export estático.
+# Se compila con OpenNext y se publica como Worker `trustbid-dapp`, que es lo que
+# sirve https://app.trustbid.org. Antes esto se hacía sólo a mano con
+# `npm run deploy` desde una máquina local; por eso el Worker podía quedar meses
+# atrás del repo sin que nadie lo notara.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/dapp/**'
+      # La dapp consume @trustbid/stellar-sdk del workspace: si cambia, hay que
+      # reconstruir el Worker aunque no se haya tocado apps/dapp.
+      - 'packages/**'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-dapp.yml'
+  workflow_dispatch:
+
+# Dos deploys simultáneos del mismo Worker se pisan; que esperen en fila.
+concurrency:
+  group: deploy-dapp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+      NEXT_PUBLIC_STELLAR_NETWORK: ${{ vars.NEXT_PUBLIC_STELLAR_NETWORK }}
+      NEXT_PUBLIC_HORIZON_URL: ${{ vars.NEXT_PUBLIC_HORIZON_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Las `NEXT_PUBLIC_*` se hornean en el bundle en tiempo de build. Si alguna
+      # falta, Next compila igual y el fallo aparece recién en producción: sin
+      # NEXT_PUBLIC_PRIVY_APP_ID el login por email/OTP simplemente desaparece.
+      # Preferimos romper el deploy acá antes que publicar una dapp a medias.
+      - name: Verificar variables de build
+        run: |
+          missing=()
+          for v in NEXT_PUBLIC_API_URL NEXT_PUBLIC_PRIVY_APP_ID NEXT_PUBLIC_STELLAR_NETWORK NEXT_PUBLIC_HORIZON_URL; do
+            [ -n "${!v}" ] || missing+=("$v")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Faltan variables del repo: ${missing[*]} — cargalas en Settings → Secrets and variables → Actions → Variables"
+            exit 1
+          fi
+          echo "Build contra $NEXT_PUBLIC_API_URL (red: $NEXT_PUBLIC_STELLAR_NETWORK)"
+
+      # `usb` (nativo, transitivo de @trezor/transport vía stellar-wallets-kit) se
+      # compila durante `npm ci` y necesita libudev. Es el mismo tropiezo que tuvo
+      # el build del api en Railway.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+
+      # Desde la raíz: la dapp depende de paquetes del workspace, no se puede
+      # instalar sólo apps/dapp.
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Build (Next → OpenNext → Worker)
+        working-directory: apps/dapp
+        run: npx opennextjs-cloudflare build
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/dapp
+          command: deploy
+
+      - name: Smoke test
+        run: |
+          for path in / /login /register /public; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -L "https://app.trustbid.org${path}")
+            echo "  ${path} → HTTP ${code}"
+            case "$code" in 2*|3*) ;; *) echo "::error::app.trustbid.org${path} respondió ${code}"; exit 1 ;; esac
+          done
