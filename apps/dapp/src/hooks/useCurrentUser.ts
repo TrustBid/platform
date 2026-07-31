@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { authHeaders, clearJwt, getJwt } from '@/lib/auth/sep10';
+import { useCallback, useEffect, useState } from 'react';
+import { authHeaders, getJwt } from '@/lib/auth/sep10';
 
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 
@@ -15,19 +15,33 @@ export interface CurrentUser {
   walletAddress: string | null;
 }
 
+/** Lee el usuario actual. Sin estado propio, para poder reusarla. */
+async function loadMe(): Promise<CurrentUser | null> {
+  try {
+    const res = await fetch(`${API}/auth/me`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as CurrentUser;
+  } catch {
+    return null;
+  }
+}
+
 export function useCurrentUser() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!getJwt()) { setLoading(false); return; }
-
-    fetch(`${API}/auth/me`, { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+  // Para que una pantalla que acaba de guardar relea la fuente de verdad en
+  // vez de asumir lo que mandó. No se invoca desde el efecto de abajo a
+  // propósito: llamar un callback con setState desde un efecto es justo lo que
+  // marca react-hooks/set-state-in-effect.
+  const refetch = useCallback(async () => {
+    setUser(await loadMe());
   }, []);
 
-  return { user, loading };
+  useEffect(() => {
+    if (!getJwt()) { setLoading(false); return; }
+    loadMe().then(setUser).finally(() => setLoading(false));
+  }, []);
+
+  return { user, loading, refetch };
 }

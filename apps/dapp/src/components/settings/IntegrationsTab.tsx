@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { authHeaders } from '@/lib/auth/sep10';
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 import { Pill, SectionHeader, SettingsCard } from './shared';
@@ -12,147 +11,95 @@ type ApiIntegration = {
   connected: boolean;
 };
 
-type Action = 'configurar' | 'conectar' | 'upgrade';
-
 /**
- * Catálogo de integraciones tal como se le presentan al usuario.
+ * Cómo se le presenta al usuario cada integración que la API reporta.
  *
- * La API todavía devuelve nombres y detalles en terminología de infraestructura
+ * La API devuelve nombres y detalles en terminología de infraestructura
  * ("Stellar Testnet", "USDC", saldos en XLM, dirección de wallet). De esa
- * respuesta sólo consumimos el flag `connected`: el nombre y la descripción
- * salen siempre de aquí, para que la UI no exponga jerga de blockchain.
+ * respuesta sólo consumimos `id` y `connected`: el nombre y la descripción
+ * salen de acá, para que la UI no exponga jerga de blockchain.
+ *
+ * El diseño incluía además "Exportar a Excel / CSV" y "Webhooks (API)", pero
+ * la API no reporta esas integraciones; se omiten en vez de inventarles estado.
  */
-const CATALOG: {
-  id: string;
-  name: string;
-  description: string;
-  action: Action;
-  /** Etiqueta cuando está conectada; por defecto "Conectado". */
-  connectedLabel?: string;
-  /** Se muestra como conectada sin consultar a la API. */
-  alwaysOn?: boolean;
-}[] = [
-  {
-    id: 'stellar',
+const PRESENTATION: Record<string, { name: string; description: string }> = {
+  stellar: {
     name: 'Red de verificación',
     description: 'Anclaje automático de movimientos para certificados.',
-    action: 'configurar',
   },
-  {
-    id: 'usdc',
+  usdc: {
     name: 'Fondos digitales',
     description: 'Gestión de fondos para desembolsos y pagos a áreas.',
-    action: 'configurar',
   },
-  {
-    id: 'email',
+  email: {
     name: 'Email / SMTP',
     description: 'Notificaciones por correo a donantes y equipo.',
-    action: 'conectar',
   },
-  {
-    id: 'whatsapp',
+  whatsapp: {
     name: 'WhatsApp API',
     description: 'Avisos y reportes por WhatsApp al equipo de campo.',
-    action: 'conectar',
   },
-  {
-    id: 'export',
-    name: 'Exportar a Excel / CSV',
-    description: 'Descarga de movimientos para el Contador.',
-    action: 'configurar',
-    connectedLabel: 'Activo',
-    alwaysOn: true,
-  },
-  {
-    id: 'webhooks',
-    name: 'Webhooks (API)',
-    description: 'Recibe eventos en tu sistema cuando ocurren pagos.',
-    action: 'upgrade',
-  },
-];
+};
 
 export function IntegrationsTab() {
-  const [connectedIds, setConnectedIds] = useState<Set<string>>(new Set());
+  const [items, setItems] = useState<ApiIntegration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/my/org/settings/integrations`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((items: ApiIntegration[]) =>
-        setConnectedIds(new Set(items.filter((i) => i.connected).map((i) => i.id))),
-      )
-      // Sin respuesta de la API, todo se muestra como no conectado.
-      .catch(() => setConnectedIds(new Set()))
+      .then((data: ApiIntegration[]) => setItems(data))
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
+
+  // Sólo mostramos lo que la API reporta y sabemos nombrar sin jerga técnica.
+  const visible = items.filter((it) => PRESENTATION[it.id]);
 
   return (
     <div className="space-y-4">
       <SectionHeader
         title="Integraciones"
-        description="Conectá herramientas externas a tu organización."
+        description="Estado de las herramientas conectadas a tu organización."
       />
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="size-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
         </div>
+      ) : failed ? (
+        <SettingsCard>
+          <p className="p-6 text-center text-sm text-muted-foreground">
+            No se pudo consultar el estado de las integraciones.
+          </p>
+        </SettingsCard>
       ) : (
         <div className="space-y-3">
-          {CATALOG.map((it) => {
-            const connected = it.alwaysOn || connectedIds.has(it.id);
+          {visible.map((it) => {
+            const { name, description } = PRESENTATION[it.id];
             return (
               <SettingsCard key={it.id}>
                 <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <div
                       className={`size-9 shrink-0 rounded-lg ${
-                        connected
-                          ? 'bg-[#dbf4ec] dark:bg-emerald-950/60'
-                          : 'bg-muted'
+                        it.connected ? 'bg-[#dbf4ec] dark:bg-emerald-950/60' : 'bg-muted'
                       }`}
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{it.name}</p>
-                      <p className="text-xs text-muted-foreground">{it.description}</p>
+                      <p className="text-sm font-semibold text-foreground">{name}</p>
+                      <p className="text-xs text-muted-foreground">{description}</p>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {connected ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled
-                          title="Próximamente"
-                          className="h-7.5 rounded-md px-3 text-xs font-medium"
-                        >
-                          Configurar
-                        </Button>
-                        <Pill tone="green">✓ {it.connectedLabel ?? 'Conectado'}</Pill>
-                      </>
-                    ) : it.action === 'upgrade' ? (
-                      <Button
-                        size="sm"
-                        disabled
-                        title="Próximamente"
-                        className="h-7.5 rounded-md bg-[#eee6fb] px-3 text-xs font-medium text-violet-600 hover:bg-[#e5d9f9] dark:bg-violet-950/50 dark:text-violet-400"
-                      >
-                        ↑ Mejorar plan
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        disabled
-                        title="Próximamente"
-                        className="h-7.5 rounded-md bg-[#edf1fe] px-3 text-xs font-medium text-blue-600 hover:bg-[#dee8fc] dark:bg-blue-950/50 dark:text-blue-400"
-                      >
-                        Conectar
-                      </Button>
-                    )}
-                  </div>
+                  {/* Sólo estado: la API es de lectura, no hay endpoint para
+                      conectar ni configurar nada desde acá. */}
+                  {it.connected ? (
+                    <Pill tone="green">✓ Conectado</Pill>
+                  ) : (
+                    <Pill tone="neutral">Sin conectar</Pill>
+                  )}
                 </div>
               </SettingsCard>
             );

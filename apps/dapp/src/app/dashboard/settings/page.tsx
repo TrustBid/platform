@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useOrg } from '@/hooks/useOrg';
+import { useOrgProfile } from '@/hooks/useOrgProfile';
 import { VolunteerInvites } from '@/components/dashboard/VolunteerInvites';
 import { GeneralTab } from '@/components/settings/GeneralTab';
 import { UsersTab } from '@/components/settings/UsersTab';
@@ -13,6 +14,7 @@ import { TemplatesTab } from '@/components/settings/TemplatesTab';
 import { IntegrationsTab } from '@/components/settings/IntegrationsTab';
 import { NotificationsTab } from '@/components/settings/NotificationsTab';
 import { BillingTab } from '@/components/settings/BillingTab';
+import { SETTINGS_TABS_ENABLED } from '@/components/settings/features';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -22,20 +24,37 @@ const TABS = [
   { id: 'integrations', label: 'Integraciones' },
   { id: 'notifications', label: 'Notificaciones' },
   { id: 'billing', label: 'Facturación' },
-  // Fuera del diseño de Figma, pero es funcionalidad real ya en producción.
+  // Fuera del diseño de Figma, pero es funcionalidad real ya en producción
+  // (POST/GET/DELETE /my/bot/invites).
   { id: 'volunteers', label: 'Voluntarios' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
+/** `true` si la pestaña debe verse para este usuario. */
+function isVisible(id: TabId, role: string | undefined): boolean {
+  if (id === 'volunteers') return role === 'admin';
+  if (id in SETTINGS_TABS_ENABLED) {
+    return SETTINGS_TABS_ENABLED[id as keyof typeof SETTINGS_TABS_ENABLED];
+  }
+  return true;
+}
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<TabId>('general');
-  const { user } = useCurrentUser();
+  const { user, refetch: refetchUser } = useCurrentUser();
   const { org, refetch: refetchOrg } = useOrg();
+  const { profile, refetch: refetchProfile } = useOrgProfile();
 
-  const visibleTabs = TABS.filter(
-    (t) => t.id !== 'volunteers' || user?.role === 'admin',
-  );
+  const visibleTabs = TABS.filter((t) => isVisible(t.id, user?.role));
+
+  // Tras guardar, releemos las tres fuentes que alimentan General en vez de
+  // asumir que el servidor guardó exactamente lo que mandamos.
+  const handleSaved = () => {
+    refetchUser();
+    refetchOrg();
+    refetchProfile();
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
@@ -80,7 +99,7 @@ export default function SettingsPage() {
       </div>
 
       {tab === 'general' && (
-        <GeneralTab user={user} org={org} onOrgSaved={refetchOrg} />
+        <GeneralTab user={user} org={org} profile={profile} onSaved={handleSaved} />
       )}
       {tab === 'users' && <UsersTab />}
       {tab === 'areas' && <AreasTab />}
