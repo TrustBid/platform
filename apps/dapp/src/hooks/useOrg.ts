@@ -48,18 +48,29 @@ export function useOrg() {
   return { org, loading, refetch: fetchOrg };
 }
 
+async function loadOrgUsers(): Promise<OrgUser[]> {
+  try {
+    const res = await fetch(`${API}/my/org/users`, { headers: authHeaders() });
+    if (!res.ok) return [];
+    return (await res.json()) as OrgUser[];
+  } catch {
+    return [];
+  }
+}
+
 export function useOrgUsers() {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!getJwt()) { setLoading(false); return; }
-    fetch(`${API}/my/org/users`, { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(setUsers)
-      .catch(() => setUsers([]))
-      .finally(() => setLoading(false));
+  // Para releer la lista después de editar un usuario.
+  const refetch = useCallback(async () => {
+    setUsers(await loadOrgUsers());
   }, []);
 
-  return { users, loading };
+  useEffect(() => {
+    if (!getJwt()) { setLoading(false); return; }
+    loadOrgUsers().then(setUsers).finally(() => setLoading(false));
+  }, []);
+
+  return { users, loading, refetch };
 }

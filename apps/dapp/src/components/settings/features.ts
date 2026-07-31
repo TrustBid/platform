@@ -1,22 +1,14 @@
 /**
- * Pestañas de Configuración que existen en el diseño pero todavía no tienen
- * API detrás. Se mantienen los componentes en el repo —ya están hechos y
- * revisados contra Figma— pero no se muestran, para no exponer datos
- * inventados como si fueran reales.
+ * Facturación es la única pestaña del diseño que sigue sin backend.
  *
- * Para habilitar una, poné su flag en `true` una vez que el endpoint exista:
+ * No es un endpoint que falte: no existe el dominio. La tabla `plans` guarda
+ * planes de trabajo (fechas, programa), no suscripciones — no hay precios,
+ * límites por plan, historial de cobros ni pasarela de pago. Construirlo
+ * requiere decisiones de producto, no sólo código, así que la pantalla queda
+ * fuera de la navegación hasta que existan.
  *
- * | Pestaña       | Qué falta                                                    |
- * |---------------|--------------------------------------------------------------|
- * | areas         | CRUD de `areas` + columnas de presupuesto (la tabla no las tiene) |
- * | templates     | CRUD sobre `pipeline_templates` / `pipeline_template_stages` |
- * | notifications | Tabla de preferencias por usuario/evento/canal                |
- * | billing       | Dominio de suscripciones completo (`plans` son planes de       |
- * |               | trabajo, no de cobro)                                         |
+ * El componente `BillingTab` se conserva para no rehacer el trabajo de diseño.
  */
 export const SETTINGS_TABS_ENABLED = {
-  areas: false,
-  templates: false,
-  notifications: false,
   billing: false,
 } as const;

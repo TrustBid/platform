@@ -12,6 +12,8 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { HorizonWatcherModule } from './modules/horizon/horizon-watcher.module';
 import { BadgesModule } from './modules/badges/badges.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { AreasModule } from './modules/areas/areas.module';
+import { PipelineTemplatesModule } from './modules/pipeline-templates/pipeline-templates.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -28,6 +30,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     HorizonWatcherModule,
     BadgesModule,
     WhatsappModule,
+    AreasModule,
+    PipelineTemplatesModule,
   ],
   controllers: [AppController],
   providers: [
