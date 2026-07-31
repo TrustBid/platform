@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const { org, refetch: refetchOrg } = useOrg();
   const { profile, refetch: refetchProfile } = useOrgProfile();
 
+  const isAdmin = user?.role === 'admin';
   const visibleTabs = TABS.filter((t) => isVisible(t.id, user?.role));
 
   // Tras guardar, releemos las tres fuentes que alimentan General en vez de
@@ -101,11 +102,11 @@ export default function SettingsPage() {
       {tab === 'general' && (
         <GeneralTab user={user} org={org} profile={profile} onSaved={handleSaved} />
       )}
-      {tab === 'users' && <UsersTab />}
-      {tab === 'areas' && <AreasTab />}
-      {tab === 'templates' && <TemplatesTab />}
+      {tab === 'users' && <UsersTab isAdmin={isAdmin} />}
+      {tab === 'areas' && <AreasTab isAdmin={isAdmin} />}
+      {tab === 'templates' && <TemplatesTab isAdmin={isAdmin} />}
       {tab === 'integrations' && <IntegrationsTab />}
-      {tab === 'notifications' && <NotificationsTab user={user} />}
+      {tab === 'notifications' && <NotificationsTab user={user} isAdmin={isAdmin} />}
       {tab === 'billing' && <BillingTab />}
       {tab === 'volunteers' && <VolunteerInvites />}
     </div>

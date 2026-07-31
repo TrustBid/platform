@@ -1,7 +1,11 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Put } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { CurrentOrg } from '../../common/decorators/org.decorator';
+import {
+  UpdateNotificationPreferencesDto,
+  UpdateOrgUserDto,
+} from './dto/settings.dto';
+import { CurrentOrg, CurrentUser } from '../../common/decorators/org.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
@@ -30,6 +34,33 @@ export class OrganizationsController {
   @Get('users')
   listUsers(@CurrentOrg() orgId: string) {
     return this.svc.listUsers(orgId);
+  }
+
+  @Patch('users/:id')
+  @Roles('admin')
+  updateUser(
+    @CurrentOrg() orgId: string,
+    @CurrentUser() actor: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: UpdateOrgUserDto,
+  ) {
+    return this.svc.updateUser(orgId, actor?.sub, id, dto);
+  }
+
+  // ── Notificaciones ───────────────────────────────────────────────────────────
+
+  @Get('settings/notifications')
+  getNotifications(@CurrentOrg() orgId: string) {
+    return this.svc.getNotificationPreferences(orgId);
+  }
+
+  @Put('settings/notifications')
+  @Roles('admin')
+  setNotifications(
+    @CurrentOrg() orgId: string,
+    @Body() dto: UpdateNotificationPreferencesDto,
+  ) {
+    return this.svc.setNotificationPreferences(orgId, dto.preferences);
   }
 
   // ── Stellar integrations ─────────────────────────────────────────────────────

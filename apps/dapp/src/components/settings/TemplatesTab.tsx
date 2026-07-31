@@ -1,75 +1,40 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  usePipelineTemplates,
+  type PipelineTemplate,
+  type TemplateInput,
+} from '@/hooks/useSettingsResources';
+import { TemplateDialog } from './TemplateDialog';
 import { Pill, SectionHeader, SettingsCard } from './shared';
 
-type Tone = 'blue' | 'green' | 'violet' | 'amber';
-
-/**
- * Plantillas de demo. `usePipeline` sólo expone las etapas de un proyecto
- * concreto; todavía no hay endpoint de plantillas a nivel de organización.
- */
-const TEMPLATES: {
-  id: string;
-  name: string;
-  description: string;
-  activeProjects: number;
-  stages: string[];
-  tone: Tone;
-}[] = [
-  {
-    id: 'p1',
-    name: 'Construcción',
-    description: 'Flujo estándar para proyectos de obra.',
-    activeProjects: 3,
-    stages: ['Diseño', 'Fondeo', 'Ejecución', 'Verificación', 'Cierre'],
-    tone: 'blue',
-  },
-  {
-    id: 'p2',
-    name: 'Donación simple',
-    description: 'Recepción y ejecución directa de fondos.',
-    activeProjects: 1,
-    stages: ['Fondeo', 'Ejecución', 'Cierre'],
-    tone: 'green',
-  },
-  {
-    id: 'p3',
-    name: 'Programa por hitos',
-    description: 'Desembolsos atados a hitos verificados.',
-    activeProjects: 2,
-    stages: ['Planificación', 'Hito 1', 'Hito 2', 'Hito 3', 'Cierre'],
-    tone: 'violet',
-  },
-  {
-    id: 'p4',
-    name: 'Investigación',
-    description: 'Para proyectos académicos con entregables.',
-    activeProjects: 0,
-    stages: ['Propuesta', 'Recolección', 'Análisis', 'Reporte'],
-    tone: 'amber',
-  },
-];
-
-const ICON_BG: Record<Tone, string> = {
-  blue: 'bg-[#dee8fc] dark:bg-blue-950/60',
-  green: 'bg-[#dbf4ec] dark:bg-emerald-950/60',
-  violet: 'bg-[#eee6fb] dark:bg-violet-950/60',
-  amber: 'bg-[#fdf0db] dark:bg-amber-950/60',
-};
-
-function TemplateCard({ template }: { template: (typeof TEMPLATES)[number] }) {
-  const { activeProjects: active } = template;
+function TemplateCard({
+  template,
+  canManage,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  template: PipelineTemplate;
+  canManage: boolean;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const active = template.activeProjects;
 
   return (
     <SettingsCard>
       <div className="flex items-start gap-3 p-4">
-        <div className={`size-9 shrink-0 rounded-lg ${ICON_BG[template.tone]}`} />
+        <div className="size-9 shrink-0 rounded-lg bg-[#dee8fc] dark:bg-blue-950/60" />
         <div className="min-w-0 space-y-1.5">
           <div className="space-y-0.5">
             <p className="text-sm font-semibold text-foreground">{template.name}</p>
-            <p className="text-xs text-muted-foreground">{template.description}</p>
+            {template.description && (
+              <p className="text-xs text-muted-foreground">{template.description}</p>
+            )}
           </div>
           {active > 0 && (
             <Pill tone="green">
@@ -78,9 +43,9 @@ function TemplateCard({ template }: { template: (typeof TEMPLATES)[number] }) {
           )}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             {template.stages.map((s, i) => (
-              <React.Fragment key={s}>
+              <React.Fragment key={`${s.name}-${i}`}>
                 <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-                  {s}
+                  {s.name}
                 </span>
                 {i < template.stages.length - 1 && (
                   <span className="text-xs text-muted-foreground">→</span>
@@ -91,64 +56,124 @@ function TemplateCard({ template }: { template: (typeof TEMPLATES)[number] }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled
-          title="Próximamente"
-          className="h-7 rounded-md px-3 text-xs font-medium"
-        >
-          Editar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled
-          title="Próximamente"
-          className="h-7 rounded-md px-3 text-xs font-medium"
-        >
-          Duplicar
-        </Button>
-        {/* Sólo se puede borrar una plantilla que ningún proyecto esté usando. */}
-        {active === 0 && (
+      {canManage && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border p-3">
           <Button
             variant="outline"
             size="sm"
-            disabled
-            title="Próximamente"
-            className="h-7 rounded-md border-red-500 px-3 text-xs font-medium text-red-600 dark:text-red-400"
+            onClick={onEdit}
+            className="h-7 rounded-md px-3 text-xs font-medium"
           >
-            ✕ Borrar
+            Editar
           </Button>
-        )}
-      </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDuplicate}
+            className="h-7 rounded-md px-3 text-xs font-medium"
+          >
+            Duplicar
+          </Button>
+          {/* Sólo se puede borrar una plantilla que ningún proyecto activo use.
+              El backend lo vuelve a validar y responde 409 si cambió. */}
+          {active === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              className="h-7 rounded-md border-red-500 px-3 text-xs font-medium text-red-600 dark:text-red-400"
+            >
+              ✕ Borrar
+            </Button>
+          )}
+        </div>
+      )}
     </SettingsCard>
   );
 }
 
-export function TemplatesTab() {
+export function TemplatesTab({ isAdmin }: { isAdmin: boolean }) {
+  const { templates, loading, create, update, duplicate, remove } =
+    usePipelineTemplates();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<PipelineTemplate | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const openNew = () => {
+    setEditing(null);
+    setDialogOpen(true);
+  };
+  const openEdit = (t: PipelineTemplate) => {
+    setEditing(t);
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (input: TemplateInput) =>
+    editing ? update(editing.id, input) : create(input);
+
+  const handleDelete = async (t: PipelineTemplate) => {
+    setError(null);
+    const ok = await remove(t.id);
+    if (!ok) setError(`No se pudo borrar "${t.name}": puede estar en uso.`);
+  };
+
+  const handleDuplicate = async (t: PipelineTemplate) => {
+    setError(null);
+    const ok = await duplicate(t.id);
+    if (!ok) setError(`No se pudo duplicar "${t.name}".`);
+  };
+
   return (
     <div className="space-y-4">
       <SectionHeader
         title="Plantillas de pipeline"
         description="Define los pasos que sigue cada tipo de proyecto."
         action={
-          <Button
-            disabled
-            title="Próximamente"
-            className="h-8.5 shrink-0 rounded-lg bg-blue-600 px-3 text-[13px] font-semibold text-white hover:bg-blue-700"
-          >
-            + Nueva plantilla
-          </Button>
+          isAdmin ? (
+            <Button
+              onClick={openNew}
+              className="h-8.5 shrink-0 rounded-lg bg-blue-600 px-3 text-[13px] font-semibold text-white hover:bg-blue-700"
+            >
+              + Nueva plantilla
+            </Button>
+          ) : undefined
         }
       />
 
-      <div className="space-y-4">
-        {TEMPLATES.map((t) => (
-          <TemplateCard key={t.id} template={t} />
-        ))}
-      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="size-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        </div>
+      ) : templates.length === 0 ? (
+        <SettingsCard>
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            Todavía no hay plantillas.
+            {isAdmin && ' Creá una para reutilizar el mismo flujo en varios proyectos.'}
+          </p>
+        </SettingsCard>
+      ) : (
+        <div className="space-y-4">
+          {templates.map((t) => (
+            <TemplateCard
+              key={t.id}
+              template={t}
+              canManage={isAdmin}
+              onEdit={() => openEdit(t)}
+              onDuplicate={() => handleDuplicate(t)}
+              onDelete={() => handleDelete(t)}
+            />
+          ))}
+        </div>
+      )}
+
+      <TemplateDialog
+        open={dialogOpen}
+        template={editing}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

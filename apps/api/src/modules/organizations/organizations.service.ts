@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
@@ -101,6 +101,116 @@ export class OrganizationsService {
       lastLoginAt: r.last_login_at ? r.last_login_at.toISOString() : null,
       createdAt: r.created_at.toISOString(),
     }));
+  }
+
+  // ── Editar un usuario (PATCH /my/org/users/:id) ──────────────────────────────
+
+  async updateUser(
+    orgId: string,
+    actorId: string,
+    userId: string,
+    dto: { role?: string; isActive?: boolean },
+  ) {
+    // Un admin no puede degradarse ni desactivarse a sí mismo: sería la forma
+    // más fácil de dejar la organización sin nadie que pueda administrarla.
+    if (userId === actorId && (dto.role !== undefined || dto.isActive === false)) {
+      throw new BadRequestException({
+        code: 'cannot_modify_self',
+        message: 'No podés cambiar tu propio rol ni desactivar tu cuenta.',
+      });
+    }
+
+    const target = await this.pool.query<{ role: string }>(
+      'SELECT role FROM users WHERE id = $1 AND organization_id = $2',
+      [userId, orgId],
+    );
+    if (!target.rows[0]) {
+      throw new NotFoundException({ code: 'not_found', message: 'User not found' });
+    }
+
+    // Y tampoco se puede quitar al último admin activo por la vía indirecta.
+    const losingAdmin =
+      target.rows[0].role === 'admin' &&
+      ((dto.role !== undefined && dto.role !== 'admin') || dto.isActive === false);
+    if (losingAdmin) {
+      const admins = await this.pool.query<{ count: string }>(
+        `SELECT COUNT(*) FROM users
+         WHERE organization_id = $1 AND role = 'admin' AND is_active`,
+        [orgId],
+      );
+      if (Number(admins.rows[0].count) <= 1) {
+        throw new BadRequestException({
+          code: 'last_admin',
+          message: 'La organización debe conservar al menos un administrador activo.',
+        });
+      }
+    }
+
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    if (dto.role !== undefined) {
+      values.push(dto.role);
+      sets.push(`role = $${values.length}`);
+    }
+    if (dto.isActive !== undefined) {
+      values.push(dto.isActive);
+      sets.push(`is_active = $${values.length}`);
+    }
+    if (sets.length === 0) return { success: true };
+
+    values.push(userId, orgId);
+    await this.pool.query(
+      `UPDATE users SET ${sets.join(', ')}, updated_at = NOW()
+       WHERE id = $${values.length - 1} AND organization_id = $${values.length}`,
+      values,
+    );
+    return { success: true };
+  }
+
+  // ── Preferencias de notificación ─────────────────────────────────────────────
+
+  async getNotificationPreferences(orgId: string) {
+    const result = await this.pool.query<{
+      event_key: string;
+      channel: string;
+      enabled: boolean;
+    }>(
+      `SELECT event_key, channel, enabled FROM notification_preferences
+       WHERE organization_id = $1`,
+      [orgId],
+    );
+    return result.rows.map((r) => ({
+      eventKey: r.event_key,
+      channel: r.channel,
+      enabled: r.enabled,
+    }));
+  }
+
+  /** Reemplaza el set completo de preferencias en una sola transacción. */
+  async setNotificationPreferences(
+    orgId: string,
+    prefs: { eventKey: string; channel: string; enabled: boolean }[],
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const p of prefs) {
+        await client.query(
+          `INSERT INTO notification_preferences (organization_id, event_key, channel, enabled)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (organization_id, event_key, channel)
+           DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()`,
+          [orgId, p.eventKey, p.channel, p.enabled],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return this.getNotificationPreferences(orgId);
   }
 
   // ── Stellar integrations (GET /my/org/settings/integrations) ─────────────────
