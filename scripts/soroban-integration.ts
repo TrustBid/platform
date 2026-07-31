@@ -15,6 +15,31 @@ import {
 } from './integration/soroban-service';
 import { testCrossContract } from './integration/cross-contract';
 
+// El sbt-badge desplegado en testnet quedó con un admin que no es ninguna de las
+// claves que maneja el equipo (ni la del servidor ni la de CI), y mint/revoke
+// exigen su firma. Los tramos que dependen de eso no pueden pasar hasta que se
+// resuelva, pero hasta ahora tumbaban la corrida ENTERA: como Sprint 6 va antes,
+// Sprint 7 (config) y Sprint 9 (cross-contract) ni siquiera se ejecutaban.
+//
+// Se tolera únicamente ESE fallo. Cualquier otro error rompe el run como siempre,
+// para no convertir esto en una tapa de regresiones reales.
+const SBT_ADMIN_BLOCKER = /NeedsMoreSignatures|not_admin/i;
+const blocked: string[] = [];
+
+async function stage(name: string, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!SBT_ADMIN_BLOCKER.test(msg)) throw err;
+    blocked.push(name);
+    // Al inicio de línea para que GitHub Actions lo muestre como anotación.
+    console.log(
+      `::warning::${name} BLOQUEADO — el admin del sbt-badge no es la identidad de CI: ${msg.split('\n')[0].slice(0, 140)}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   loadEnvLocal();
   const secret = resolveServerSecret();
@@ -33,16 +58,24 @@ async function main(): Promise<void> {
   await testExpenseAnchorDeep(secret);
 
   console.log('\n=== Sprint 6: sbt-badge ===');
-  await testSbtBadgeDeep(secret);
+  await stage('Sprint 6 (sbt-badge)', () => testSbtBadgeDeep(secret));
 
   console.log('\n=== Sprint 7: SorobanService ===');
-  await testSorobanServiceFlow(secret);
+  // S7-01 mintea y revoca badges → mismo bloqueo. S7-02 sólo lee, así que corre.
+  await stage('Sprint 7 (SorobanService flow)', () => testSorobanServiceFlow(secret));
   await testSorobanServiceConfig(secret);
 
   console.log('\n=== Sprint 9: cross-contract ===');
   await testCrossContract(secret);
 
-  console.log('\nAll integration checks passed.');
+  if (blocked.length > 0) {
+    console.log(
+      `\nIntegration checks passed, con ${blocked.length} tramo(s) BLOQUEADO(S) por el admin del sbt-badge: ${blocked.join(', ')}.`,
+    );
+    console.log('Se desbloquean recuperando la clave admin del contrato o redeployando sbt-badge.');
+  } else {
+    console.log('\nAll integration checks passed.');
+  }
 }
 
 main().catch((err) => {
