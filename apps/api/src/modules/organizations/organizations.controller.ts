@@ -1,7 +1,20 @@
-import { Body, Controller, Get, Param, Patch, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { OrganizationsService } from './organizations.service';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import {
+  CreateInviteDto,
   UpdateNotificationPreferencesDto,
   UpdateOrgUserDto,
 } from './dto/settings.dto';
@@ -47,6 +60,30 @@ export class OrganizationsController {
     return this.svc.updateUser(orgId, actor?.sub, id, dto);
   }
 
+  // ── Invitaciones ─────────────────────────────────────────────────────────────
+
+  @Get('invites')
+  @Roles('admin')
+  listInvites(@CurrentOrg() orgId: string) {
+    return this.svc.listInvites(orgId);
+  }
+
+  @Post('invites')
+  @Roles('admin')
+  createInvite(
+    @CurrentOrg() orgId: string,
+    @CurrentUser() user: { sub: string },
+    @Body() dto: CreateInviteDto,
+  ) {
+    return this.svc.createInvite(orgId, user?.sub ?? null, dto);
+  }
+
+  @Delete('invites/:id')
+  @Roles('admin')
+  revokeInvite(@CurrentOrg() orgId: string, @Param('id') id: string) {
+    return this.svc.revokeInvite(orgId, id);
+  }
+
   // ── Notificaciones ───────────────────────────────────────────────────────────
 
   @Get('settings/notifications')
@@ -81,6 +118,24 @@ export class OrganizationsController {
   @Roles('admin')
   updateProfile(@CurrentOrg() orgId: string, @Body() dto: UpdateOrganizationDto) {
     return this.svc.updateOrganization(orgId, dto);
+  }
+
+  // ── Imágenes de perfil ───────────────────────────────────────────────────────
+
+  @Post('logo')
+  @Roles('admin')
+  @UseInterceptors(FileInterceptor('file'))
+  setLogo(@CurrentOrg() orgId: string, @UploadedFile() file: Express.Multer.File) {
+    return this.svc.setLogo(orgId, file);
+  }
+
+  @Post('avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  setAvatar(
+    @CurrentUser() user: { sub: string },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.svc.setAvatar(user.sub, file);
   }
 
   // ── Lookups (public) ─────────────────────────────────────────────────────────

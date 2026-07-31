@@ -14,7 +14,6 @@ import { TemplatesTab } from '@/components/settings/TemplatesTab';
 import { IntegrationsTab } from '@/components/settings/IntegrationsTab';
 import { NotificationsTab } from '@/components/settings/NotificationsTab';
 import { BillingTab } from '@/components/settings/BillingTab';
-import { SETTINGS_TABS_ENABLED } from '@/components/settings/features';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -33,11 +32,8 @@ type TabId = (typeof TABS)[number]['id'];
 
 /** `true` si la pestaña debe verse para este usuario. */
 function isVisible(id: TabId, role: string | undefined): boolean {
-  if (id === 'volunteers') return role === 'admin';
-  if (id in SETTINGS_TABS_ENABLED) {
-    return SETTINGS_TABS_ENABLED[id as keyof typeof SETTINGS_TABS_ENABLED];
-  }
-  return true;
+  // Voluntarios administra invitaciones al bot: sólo tiene sentido para admin.
+  return id !== 'volunteers' || role === 'admin';
 }
 
 export default function SettingsPage() {
@@ -107,7 +103,7 @@ export default function SettingsPage() {
       {tab === 'templates' && <TemplatesTab isAdmin={isAdmin} />}
       {tab === 'integrations' && <IntegrationsTab />}
       {tab === 'notifications' && <NotificationsTab user={user} isAdmin={isAdmin} />}
-      {tab === 'billing' && <BillingTab />}
+      {tab === 'billing' && <BillingTab isAdmin={isAdmin} />}
       {tab === 'volunteers' && <VolunteerInvites />}
     </div>
   );

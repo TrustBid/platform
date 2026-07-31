@@ -2,6 +2,7 @@ import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class
 
 const ORG_TYPES = ['ong', 'fundacion', 'asociacion', 'empresa_b', 'cooperativa', 'otra'] as const;
 const GEO_SCOPES = ['local', 'regional', 'nacional', 'internacional'] as const;
+const LANGUAGES = ['es', 'en'] as const;
 
 export class UpdateOrganizationDto {
   @IsOptional() @IsString() @MaxLength(255) name?: string;
@@ -23,6 +24,11 @@ export class UpdateOrganizationDto {
   @IsOptional() @IsIn(GEO_SCOPES)           geographic_scope?: string;
   @IsOptional() @IsString()                 annual_budget_range?: string;
   @IsOptional() @IsBoolean()                onboarding_completed?: boolean;
+
+  // Sprint 15 — campos de la pantalla de Configuración.
+  @IsOptional() @IsString()                 mission?: string;
+  @IsOptional() @IsString() @MaxLength(64)  timezone?: string;
+  @IsOptional() @IsIn(LANGUAGES)            language?: string;
 
   @IsOptional() @IsArray() @IsString({ each: true }) intervention_area_slugs?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) target_population_slugs?: string[];
