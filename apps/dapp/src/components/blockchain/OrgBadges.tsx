@@ -64,7 +64,9 @@ export function OrgBadges({ organizationId, compact }: OrgBadgesProps) {
     );
   }
 
-  const issued = data?.badges.filter((b) => b.status === 'issued') ?? [];
+  // `?.` también sobre `badges`: si la respuesta no trae el campo, esto
+  // lanzaba en render y tumbaba la pantalla entera que monta el componente.
+  const issued = data?.badges?.filter((b) => b.status === 'issued') ?? [];
   if (issued.length === 0 && (data?.onChain?.length ?? 0) === 0) {
     return compact ? null : (
       <p className="text-xs text-zinc-500">Sin badges emitidos</p>

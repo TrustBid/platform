@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { useOrgUsers, type OrgUser } from '@/hooks/useOrg';
 import { ROLE_LABELS, ROLE_PERMISSIONS } from './roles';
 import { Pill, SectionHeader, SettingsCard, SettingsCardHeader, StatusDot } from './shared';
@@ -47,16 +46,6 @@ function UserRow({ user }: { user: OrgUser }) {
           {user.isActive ? 'Activo' : 'Inactivo'}
         </span>
       </span>
-
-      <Button
-        variant="outline"
-        size="sm"
-        disabled
-        title="Próximamente"
-        className="h-6 shrink-0 rounded-md px-2 text-[11px] font-medium"
-      >
-        ⋯ Editar
-      </Button>
     </div>
   );
 }
@@ -76,7 +65,6 @@ export function UsersTab() {
           <span className="hidden flex-1 sm:block">Correo</span>
           <span className="w-28 shrink-0">Rol</span>
           <span className="hidden w-24 shrink-0 md:block">Estado</span>
-          <span className="w-[62px] shrink-0" />
         </div>
 
         {loading ? (
@@ -92,15 +80,9 @@ export function UsersTab() {
         )}
       </SettingsCard>
 
-      <div className="flex justify-end">
-        <Button
-          disabled
-          title="Próximamente"
-          className="h-7.5 rounded-lg bg-blue-600 px-3 text-[13px] font-semibold text-white hover:bg-blue-700"
-        >
-          + Invitar usuario
-        </Button>
-      </div>
+      {/* El diseño incluye "+ Invitar usuario" y "Editar", pero la API sólo
+          expone GET /my/org/users: no hay endpoint de invitación por correo ni
+          de cambio de rol. Se omiten hasta que existan. */}
 
       <SettingsCard>
         <SettingsCardHeader title="Permisos por rol" />

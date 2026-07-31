@@ -11,6 +11,7 @@ import { COUNTRIES, countryName } from '@/lib/countries';
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 import type { CurrentUser } from '@/hooks/useCurrentUser';
 import type { Organization } from '@/hooks/useOrg';
+import { GEO_SCOPES, ORG_TYPES, type OrgProfile } from '@/hooks/useOrgProfile';
 import { ROLE_LABELS } from './roles';
 import {
   FieldLabel,
@@ -21,35 +22,65 @@ import {
 
 const INPUT = 'h-9 rounded-md text-[13px]';
 const INPUT_RO = `${INPUT} bg-muted/60 text-muted-foreground cursor-not-allowed`;
+const SELECT =
+  'h-9 w-full rounded-md border border-input bg-transparent px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground';
 
-/** Campos editables del formulario. */
-type Field = 'name' | 'phone' | 'orgName' | 'country';
+/**
+ * Campos editables.
+ *
+ * `name` y `phone` viajan a `PATCH /auth/me`; `orgName` y `country` a
+ * `PATCH /my/org` —que normaliza el país a mayúsculas, requisito del CHECK de
+ * la tabla `organizations`—; el resto a `PATCH /my/org/profile`. No hay más
+ * campos porque no hay más columnas: misión, logo, zona horaria e idioma no
+ * existen en la base.
+ */
+type Field =
+  | 'name'
+  | 'phone'
+  | 'orgName'
+  | 'country'
+  | 'legal_name'
+  | 'fiscal_id'
+  | 'org_type'
+  | 'website'
+  | 'orgPhone'
+  | 'geographic_scope';
 
 export function GeneralTab({
   user,
   org,
-  onOrgSaved,
+  profile,
+  onSaved,
 }: {
   user: CurrentUser | null;
   org: Organization | null;
-  onOrgSaved?: () => void;
+  profile: OrgProfile | null;
+  onSaved?: () => void;
 }) {
   const router = useRouter();
-  // `user` y `org` llegan async. En vez de copiarlos a estado dentro de un
-  // efecto, guardamos sólo los campos que el usuario tocó (ausente = intacto)
-  // y derivamos el resto del prop.
+  // `user`, `org` y `profile` llegan async. En vez de copiarlos a estado dentro
+  // de un efecto, guardamos sólo los campos que el usuario tocó (ausente =
+  // intacto) y derivamos el resto de los props.
   const [edits, setEdits] = useState<Partial<Record<Field, string>>>({});
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
-  const setField = (field: Field) => (value: string) =>
+  const setField = (field: Field) => (value: string) => {
     setEdits((e) => ({ ...e, [field]: value }));
+    setSavedMsg(null);
+  };
 
   const name = edits.name ?? user?.name ?? '';
   const phone = edits.phone ?? user?.phone ?? '';
   const orgName = edits.orgName ?? org?.name ?? '';
   const country = edits.country ?? org?.country ?? '';
+  const legalName = edits.legal_name ?? profile?.legal_name ?? '';
+  const fiscalId = edits.fiscal_id ?? profile?.fiscal_id ?? '';
+  const orgType = edits.org_type ?? profile?.org_type ?? '';
+  const website = edits.website ?? profile?.website ?? '';
+  const orgPhone = edits.orgPhone ?? profile?.phone ?? '';
+  const geoScope = edits.geographic_scope ?? profile?.geographic_scope ?? '';
 
   const isWalletUser = !!user?.walletAddress;
   const isAdmin = user?.role === 'admin';
@@ -76,7 +107,7 @@ export function GeneralTab({
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ name: name.trim(), phone }),
       });
-      if (!meRes.ok) throw new Error('me');
+      if (!meRes.ok) throw new Error('perfil');
 
       if (isAdmin && org) {
         const orgRes = await fetch(`${API}/my/org`, {
@@ -84,16 +115,38 @@ export function GeneralTab({
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ name: orgName.trim(), country }),
         });
-        if (!orgRes.ok) throw new Error('org');
-        onOrgSaved?.();
+        if (!orgRes.ok) throw new Error('organización');
+
+        // El DTO ignora las claves ausentes, así que sólo mandamos lo que se
+        // tocó: string vacío es un borrado intencional, ausente es "no tocar".
+        const profileBody: Record<string, string> = {};
+        if (edits.legal_name !== undefined) profileBody.legal_name = legalName.trim();
+        if (edits.fiscal_id !== undefined) profileBody.fiscal_id = fiscalId.trim();
+        if (edits.org_type !== undefined) profileBody.org_type = orgType;
+        if (edits.website !== undefined) profileBody.website = website.trim();
+        if (edits.orgPhone !== undefined) profileBody.phone = orgPhone.trim();
+        if (edits.geographic_scope !== undefined)
+          profileBody.geographic_scope = geoScope;
+
+        if (Object.keys(profileBody).length > 0) {
+          const profRes = await fetch(`${API}/my/org/profile`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify(profileBody),
+          });
+          if (!profRes.ok) throw new Error('perfil de la organización');
+        }
       }
-      // Dejamos en pantalla exactamente lo que se persistió: si no, el input
-      // seguiría mostrando el texto sin recortar mientras el servidor ya
-      // guardó la versión con `trim()`.
-      setEdits((e) => ({ ...e, name: name.trim(), orgName: orgName.trim() }));
+
+      onSaved?.();
+      // Soltamos las ediciones locales para volver a derivar de los props ya
+      // refrescados: si no, el input seguiría mostrando el texto sin recortar
+      // mientras el servidor guardó la versión con `trim()`.
+      setEdits({});
       setSavedMsg('Cambios guardados.');
-    } catch {
-      setSaveErr('No se pudieron guardar los cambios.');
+    } catch (err) {
+      const what = err instanceof Error ? err.message : '';
+      setSaveErr(`No se pudieron guardar los cambios${what ? ` (${what})` : ''}.`);
     } finally {
       setSaving(false);
     }
@@ -116,15 +169,12 @@ export function GeneralTab({
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              title="Próximamente"
-              className="h-6 rounded-md px-2 text-[10px] font-medium"
-            >
-              Cambiar
-            </Button>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{name || '—'}</p>
+              <p className="text-xs text-muted-foreground">
+                {ROLE_LABELS[user?.role ?? ''] ?? user?.role ?? '—'}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -206,27 +256,9 @@ export function GeneralTab({
           }
         />
         <div className="space-y-4 p-4">
-          <div className="flex flex-wrap items-start gap-4">
-            <div className="size-16 shrink-0 rounded-lg border border-border bg-muted/60" />
-            <div className="space-y-1.5">
-              <FieldLabel>Logo de la organización</FieldLabel>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                title="Próximamente"
-                className="h-7 rounded-md px-2.5 text-xs font-medium"
-              >
-                ↑ Subir imagen
-              </Button>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <FieldLabel htmlFor="orgName">
-                Nombre de la organización
-              </FieldLabel>
+              <FieldLabel htmlFor="orgName">Nombre de la organización</FieldLabel>
               <Input
                 id="orgName"
                 value={orgName}
@@ -242,7 +274,7 @@ export function GeneralTab({
                   id="country"
                   value={country}
                   onChange={(e) => setField('country')(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-ring"
+                  className={SELECT}
                 >
                   <option value="" disabled>
                     Selecciona un país
@@ -254,21 +286,82 @@ export function GeneralTab({
                   ))}
                 </select>
               ) : (
-                <Input
-                  value={countryName(country)}
-                  disabled
-                  className={INPUT_RO}
-                />
+                <Input value={countryName(country)} disabled className={INPUT_RO} />
               )}
             </div>
             <div className="space-y-1.5">
-              <FieldLabel htmlFor="mission">Misión (opcional)</FieldLabel>
+              <FieldLabel htmlFor="orgType">Tipo de organización</FieldLabel>
+              <select
+                id="orgType"
+                value={orgType}
+                onChange={(e) => setField('org_type')(e.target.value)}
+                disabled={!isAdmin}
+                className={SELECT}
+              >
+                <option value="">Sin especificar</option>
+                {ORG_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="legalName">Razón social</FieldLabel>
               <Input
-                id="mission"
-                disabled
-                title="Próximamente"
-                placeholder="Transparencia financiera…"
-                className={INPUT_RO}
+                id="legalName"
+                value={legalName}
+                onChange={(e) => setField('legal_name')(e.target.value)}
+                disabled={!isAdmin}
+                className={isAdmin ? INPUT : INPUT_RO}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="fiscalId">Identificación fiscal</FieldLabel>
+              <Input
+                id="fiscalId"
+                value={fiscalId}
+                onChange={(e) => setField('fiscal_id')(e.target.value)}
+                disabled={!isAdmin}
+                className={isAdmin ? INPUT : INPUT_RO}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="geoScope">Alcance geográfico</FieldLabel>
+              <select
+                id="geoScope"
+                value={geoScope}
+                onChange={(e) => setField('geographic_scope')(e.target.value)}
+                disabled={!isAdmin}
+                className={SELECT}
+              >
+                <option value="">Sin especificar</option>
+                {GEO_SCOPES.map((g) => (
+                  <option key={g.value} value={g.value}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="website">Sitio web</FieldLabel>
+              <Input
+                id="website"
+                value={website}
+                onChange={(e) => setField('website')(e.target.value)}
+                placeholder="https://…"
+                disabled={!isAdmin}
+                className={isAdmin ? INPUT : INPUT_RO}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="orgPhone">Teléfono de contacto</FieldLabel>
+              <Input
+                id="orgPhone"
+                value={orgPhone}
+                onChange={(e) => setField('orgPhone')(e.target.value)}
+                disabled={!isAdmin}
+                className={isAdmin ? INPUT : INPUT_RO}
               />
             </div>
           </div>
@@ -281,38 +374,6 @@ export function GeneralTab({
         </div>
       </SettingsCard>
 
-      {/* Preferencias */}
-      <SettingsCard>
-        <SettingsCardHeader
-          title="Preferencias"
-          description="Idioma y zona horaria."
-        />
-        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="tz">Zona horaria</FieldLabel>
-            <Input
-              id="tz"
-              disabled
-              title="Próximamente"
-              value="América/Bogotá (UTC-5)"
-              readOnly
-              className={INPUT_RO}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel htmlFor="lang">Idioma</FieldLabel>
-            <Input
-              id="lang"
-              disabled
-              title="Próximamente"
-              value="Español"
-              readOnly
-              className={INPUT_RO}
-            />
-          </div>
-        </div>
-      </SettingsCard>
-
       <div className="flex items-center justify-end gap-3">
         {savedMsg && (
           <span className="text-sm text-emerald-600 dark:text-emerald-400">
@@ -320,9 +381,7 @@ export function GeneralTab({
           </span>
         )}
         {saveErr && (
-          <span className="text-sm text-red-600 dark:text-red-400">
-            {saveErr}
-          </span>
+          <span className="text-sm text-red-600 dark:text-red-400">{saveErr}</span>
         )}
         <Button
           onClick={handleSave}
