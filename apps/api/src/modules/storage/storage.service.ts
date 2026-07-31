@@ -76,6 +76,41 @@ export class StorageService {
     }
   }
 
+  /**
+   * Sube una imagen de perfil (logo de organización o avatar de usuario).
+   *
+   * A diferencia de los comprobantes, acá la clave NO es content-addressed:
+   * es estable por dueño (`avatars/org/<id>`), de modo que reemplazar la imagen
+   * sobrescribe la anterior y no deja huérfanos acumulándose en el bucket.
+   * Tampoco hay integridad que preservar: no se ancla on-chain.
+   */
+  async putProfileImage(
+    scope: 'org' | 'user',
+    ownerId: string,
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<string | null> {
+    if (!this.client) return null;
+    const key = `avatars/${scope}/${ownerId}`;
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+        }),
+      );
+      return key;
+    } catch (err: unknown) {
+      this.logger.error(
+        `putProfileImage failed key=${key}`,
+        err instanceof Error ? err.stack : err,
+      );
+      return null;
+    }
+  }
+
   /** URL firmada temporal para que un auditor descargue y re-verifique el comprobante. */
   async getSignedUrl(key: string, expiresInSeconds = 300): Promise<string | null> {
     if (!this.client) return null;

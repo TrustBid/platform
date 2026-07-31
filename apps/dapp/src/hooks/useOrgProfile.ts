@@ -33,7 +33,30 @@ export interface OrgProfile {
   geographic_scope: string | null;
   annual_budget_range: string | null;
   onboarding_completed: boolean;
+  mission: string | null;
+  /** URL firmada por la API; en la base se guarda la clave de R2. */
+  logo_url: string | null;
+  timezone: string;
+  language: string;
 }
+
+/** Zonas horarias ofrecidas, con foco LATAM. */
+export const TIMEZONES: { value: string; label: string }[] = [
+  { value: 'America/Bogota', label: 'América/Bogotá (UTC-5)' },
+  { value: 'America/Mexico_City', label: 'América/Ciudad de México (UTC-6)' },
+  { value: 'America/Costa_Rica', label: 'América/Costa Rica (UTC-6)' },
+  { value: 'America/Lima', label: 'América/Lima (UTC-5)' },
+  { value: 'America/Santiago', label: 'América/Santiago (UTC-4)' },
+  { value: 'America/Argentina/Buenos_Aires', label: 'América/Buenos Aires (UTC-3)' },
+  { value: 'America/Sao_Paulo', label: 'América/São Paulo (UTC-3)' },
+  { value: 'Europe/Madrid', label: 'Europa/Madrid (UTC+1)' },
+];
+
+/** Idiomas aceptados por el DTO del backend. */
+export const LANGUAGES: { value: string; label: string }[] = [
+  { value: 'es', label: 'Español' },
+  { value: 'en', label: 'English' },
+];
 
 /** Valores aceptados por `org_type` en el DTO del backend. */
 export const ORG_TYPES: { value: string; label: string }[] = [

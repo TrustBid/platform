@@ -1,17 +1,25 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { OrgBadges } from '@/components/blockchain/OrgBadges';
 import { authHeaders, clearJwt } from '@/lib/auth/sep10';
 import { COUNTRIES, countryName } from '@/lib/countries';
 import { API_BASE_URL as API } from '@/lib/api/base-url';
 import type { CurrentUser } from '@/hooks/useCurrentUser';
 import type { Organization } from '@/hooks/useOrg';
-import { GEO_SCOPES, ORG_TYPES, type OrgProfile } from '@/hooks/useOrgProfile';
+import {
+  GEO_SCOPES,
+  LANGUAGES,
+  ORG_TYPES,
+  TIMEZONES,
+  type OrgProfile,
+} from '@/hooks/useOrgProfile';
+import { uploadImage } from '@/hooks/useSettingsResources';
 import { ROLE_LABELS } from './roles';
 import {
   FieldLabel,
@@ -44,7 +52,10 @@ type Field =
   | 'org_type'
   | 'website'
   | 'orgPhone'
-  | 'geographic_scope';
+  | 'geographic_scope'
+  | 'mission'
+  | 'timezone'
+  | 'language';
 
 export function GeneralTab({
   user,
@@ -65,6 +76,13 @@ export function GeneralTab({
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  // Las imágenes se suben al instante, aparte del botón "Guardar cambios":
+  // son un endpoint distinto (multipart) y no forman parte del formulario.
+  const [uploading, setUploading] = useState<'logo' | 'avatar' | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const logoInput = useRef<HTMLInputElement>(null);
 
   const setField = (field: Field) => (value: string) => {
     setEdits((e) => ({ ...e, [field]: value }));
@@ -81,6 +99,9 @@ export function GeneralTab({
   const website = edits.website ?? profile?.website ?? '';
   const orgPhone = edits.orgPhone ?? profile?.phone ?? '';
   const geoScope = edits.geographic_scope ?? profile?.geographic_scope ?? '';
+  const mission = edits.mission ?? profile?.mission ?? '';
+  const timezone = edits.timezone ?? profile?.timezone ?? 'America/Bogota';
+  const language = edits.language ?? profile?.language ?? 'es';
 
   const isWalletUser = !!user?.walletAddress;
   const isAdmin = user?.role === 'admin';
@@ -127,6 +148,9 @@ export function GeneralTab({
         if (edits.orgPhone !== undefined) profileBody.phone = orgPhone.trim();
         if (edits.geographic_scope !== undefined)
           profileBody.geographic_scope = geoScope;
+        if (edits.mission !== undefined) profileBody.mission = mission.trim();
+        if (edits.timezone !== undefined) profileBody.timezone = timezone;
+        if (edits.language !== undefined) profileBody.language = language;
 
         if (Object.keys(profileBody).length > 0) {
           const profRes = await fetch(`${API}/my/org/profile`, {
@@ -152,6 +176,21 @@ export function GeneralTab({
     }
   }
 
+  async function handleUpload(target: 'logo' | 'avatar', file?: File) {
+    if (!file) return;
+    setUploading(target);
+    setSaveErr(null);
+    const res = await uploadImage(target, file);
+    setUploading(null);
+    if (!res.ok) {
+      setSaveErr(res.message ?? 'No se pudo subir la imagen.');
+      return;
+    }
+    if (target === 'avatar') setAvatarUrl(res.url ?? null);
+    else setLogoUrl(res.url ?? null);
+    onSaved?.();
+  }
+
   function handleSignOut() {
     clearJwt();
     router.push('/login');
@@ -165,15 +204,29 @@ export function GeneralTab({
         <div className="space-y-4 p-4">
           <div className="flex items-center gap-3">
             <Avatar className="size-12">
+              {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
               <AvatarFallback className="bg-[#edf1fe] text-[15px] font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div>
+            <div className="space-y-1">
               <p className="text-sm font-semibold text-foreground">{name || '—'}</p>
-              <p className="text-xs text-muted-foreground">
-                {ROLE_LABELS[user?.role ?? ''] ?? user?.role ?? '—'}
-              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => avatarInput.current?.click()}
+                disabled={uploading === 'avatar'}
+                className="h-6 rounded-md px-2 text-[10px] font-medium"
+              >
+                {uploading === 'avatar' ? 'Subiendo…' : 'Cambiar'}
+              </Button>
+              <input
+                ref={avatarInput}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => handleUpload('avatar', e.target.files?.[0])}
+              />
             </div>
           </div>
 
@@ -256,6 +309,38 @@ export function GeneralTab({
           }
         />
         <div className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start gap-4">
+            {(logoUrl ?? profile?.logo_url) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoUrl ?? profile?.logo_url ?? ''}
+                alt="Logo de la organización"
+                className="size-16 shrink-0 rounded-lg border border-border object-cover"
+              />
+            ) : (
+              <div className="size-16 shrink-0 rounded-lg border border-border bg-muted/60" />
+            )}
+            <div className="space-y-1.5">
+              <FieldLabel>Logo de la organización</FieldLabel>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => logoInput.current?.click()}
+                disabled={!isAdmin || uploading === 'logo'}
+                className="h-7 rounded-md px-2.5 text-xs font-medium"
+              >
+                {uploading === 'logo' ? 'Subiendo…' : '↑ Subir imagen'}
+              </Button>
+              <input
+                ref={logoInput}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => handleUpload('logo', e.target.files?.[0])}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <FieldLabel htmlFor="orgName">Nombre de la organización</FieldLabel>
@@ -366,11 +451,61 @@ export function GeneralTab({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="mission">Misión (opcional)</FieldLabel>
+            <Textarea
+              id="mission"
+              value={mission}
+              onChange={(e) => setField('mission')(e.target.value)}
+              placeholder="Transparencia financiera para fundaciones sociales…"
+              rows={2}
+              disabled={!isAdmin}
+            />
+          </div>
+
           {org?.id && (
             <div className="border-t border-border pt-4">
               <OrgBadges organizationId={org.id} />
             </div>
           )}
+        </div>
+      </SettingsCard>
+
+      {/* Preferencias */}
+      <SettingsCard>
+        <SettingsCardHeader
+          title="Preferencias"
+          description="Idioma y zona horaria."
+        />
+        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="tz">Zona horaria</FieldLabel>
+            <select
+              id="tz"
+              value={timezone}
+              onChange={(e) => setField('timezone')(e.target.value)}
+              disabled={!isAdmin}
+              className={SELECT}
+            >
+              {TIMEZONES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="lang">Idioma</FieldLabel>
+            <select
+              id="lang"
+              value={language}
+              onChange={(e) => setField('language')(e.target.value)}
+              disabled={!isAdmin}
+              className={SELECT}
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </SettingsCard>
 

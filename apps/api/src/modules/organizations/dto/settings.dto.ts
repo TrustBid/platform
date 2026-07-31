@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
@@ -46,4 +47,13 @@ export class UpdateNotificationPreferencesDto {
   @ValidateNested({ each: true })
   @Type(() => NotificationPreferenceDto)
   preferences: NotificationPreferenceDto[];
+}
+
+export class CreateInviteDto {
+  @IsEmail()
+  @MaxLength(255)
+  email: string;
+
+  @IsIn(ASSIGNABLE_ROLES)
+  role: string;
 }

@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
+import { StorageService } from '../storage/storage.service';
 import type { UpdateOrganizationDto } from './dto/update-organization.dto';
 
 const SCALAR_COLS = [
@@ -9,6 +11,8 @@ const SCALAR_COLS = [
   'country', 'state_province', 'address_1', 'address_2', 'postal_code',
   'phone', 'website', 'social_instagram', 'social_linkedin', 'social_x',
   'social_facebook', 'geographic_scope', 'annual_budget_range', 'onboarding_completed',
+  // Sprint 15: los campos que la pantalla de Configuración necesitaba.
+  'mission', 'logo_url', 'timezone', 'language',
 ] as const;
 
 @Injectable()
@@ -16,6 +20,7 @@ export class OrganizationsService {
   constructor(
     @Inject(DB_POOL) private readonly pool: Pool,
     private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   // ── Simple org (GET /my/org) ─────────────────────────────────────────────────
@@ -167,6 +172,98 @@ export class OrganizationsService {
     return { success: true };
   }
 
+  // ── Invitaciones de usuario ──────────────────────────────────────────────────
+
+  /** Cuántos días vive una invitación antes de expirar. */
+  private static readonly INVITE_TTL_DAYS = 14;
+
+  async listInvites(orgId: string) {
+    const result = await this.pool.query<{
+      id: string;
+      email: string;
+      role: string;
+      token: string;
+      expires_at: Date;
+      created_at: Date;
+    }>(
+      `SELECT id, email, role, token, expires_at, created_at
+       FROM user_invites
+       WHERE organization_id = $1 AND status = 'pending' AND expires_at > NOW()
+       ORDER BY created_at DESC`,
+      [orgId],
+    );
+    return result.rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      role: r.role,
+      inviteUrl: this.inviteUrl(r.token),
+      expiresAt: r.expires_at.toISOString(),
+      createdAt: r.created_at.toISOString(),
+    }));
+  }
+
+  async createInvite(
+    orgId: string,
+    invitedBy: string | null,
+    dto: { email: string; role: string },
+  ) {
+    const email = dto.email.trim().toLowerCase();
+
+    const existing = await this.pool.query(
+      `SELECT 1 FROM users WHERE organization_id = $1 AND email = $2`,
+      [orgId, email],
+    );
+    if (existing.rowCount) {
+      throw new BadRequestException({
+        code: 'already_member',
+        message: 'Esa persona ya forma parte de la organización.',
+      });
+    }
+
+    // Reemplaza cualquier invitación viva para el mismo correo, en vez de
+    // acumular varias que apuntan al mismo lugar.
+    await this.pool.query(
+      `UPDATE user_invites SET status = 'revoked'
+       WHERE organization_id = $1 AND email = $2 AND status = 'pending'`,
+      [orgId, email],
+    );
+
+    const token = randomBytes(24).toString('hex');
+    const result = await this.pool.query<{ id: string; expires_at: Date }>(
+      `INSERT INTO user_invites (organization_id, email, role, token, invited_by, expires_at)
+       VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' days')::interval)
+       RETURNING id, expires_at`,
+      [orgId, email, dto.role, token, invitedBy, OrganizationsService.INVITE_TTL_DAYS],
+    );
+
+    return {
+      id: result.rows[0].id,
+      email,
+      role: dto.role,
+      inviteUrl: this.inviteUrl(token),
+      expiresAt: result.rows[0].expires_at.toISOString(),
+      // Todavía no hay SMTP conectado: el alta se comparte pasando el enlace.
+      emailSent: false,
+    };
+  }
+
+  async revokeInvite(orgId: string, inviteId: string) {
+    const result = await this.pool.query(
+      `UPDATE user_invites SET status = 'revoked'
+       WHERE id = $1 AND organization_id = $2 AND status = 'pending'`,
+      [inviteId, orgId],
+    );
+    if (result.rowCount === 0) {
+      throw new NotFoundException({ code: 'not_found', message: 'Invite not found' });
+    }
+    return { success: true };
+  }
+
+  private inviteUrl(token: string) {
+    const base = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    return `${base.replace(/\/$/, '')}/register?invite=${token}`;
+  }
+
   // ── Preferencias de notificación ─────────────────────────────────────────────
 
   async getNotificationPreferences(orgId: string) {
@@ -305,6 +402,7 @@ export class OrganizationsService {
                 address_1, address_2, state_province, postal_code, phone,
                 website, social_instagram, social_linkedin, social_x, social_facebook,
                 geographic_scope, annual_budget_range, onboarding_completed,
+                mission, logo_url, timezone, language,
                 created_at, updated_at
          FROM organizations WHERE id = $1`,
         [orgId],
@@ -338,10 +436,57 @@ export class OrganizationsService {
 
     return {
       ...org,
+      // En la base guardamos la clave de R2, no una URL: el bucket es privado.
+      // La firmamos al leer para que el navegador pueda mostrar la imagen.
+      logo_url: await this.signIfKey(org.logo_url as string | null),
       interventionAreas: areasRow.rows,
       targetPopulations: popsRow.rows,
       odsGoals: odsRow.rows,
     };
+  }
+
+  /** Firma una clave de R2 por una hora. Deja pasar null y URLs ya absolutas. */
+  private async signIfKey(value: string | null): Promise<string | null> {
+    if (!value || value.startsWith('http')) return value;
+    return this.storage.getSignedUrl(value, 3600);
+  }
+
+  /** Guarda el logo de la organización y devuelve la URL firmada para mostrarlo. */
+  async setLogo(orgId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException({ code: 'no_file', message: 'No se recibió ninguna imagen.' });
+    }
+    const key = await this.storage.putProfileImage('org', orgId, file.buffer, file.mimetype);
+    if (!key) {
+      throw new BadRequestException({
+        code: 'storage_unavailable',
+        message: 'El almacenamiento de imágenes no está configurado.',
+      });
+    }
+    await this.pool.query(
+      'UPDATE organizations SET logo_url = $1, updated_at = NOW() WHERE id = $2',
+      [key, orgId],
+    );
+    return { logoUrl: await this.signIfKey(key) };
+  }
+
+  /** Guarda la foto de perfil del usuario. */
+  async setAvatar(userId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException({ code: 'no_file', message: 'No se recibió ninguna imagen.' });
+    }
+    const key = await this.storage.putProfileImage('user', userId, file.buffer, file.mimetype);
+    if (!key) {
+      throw new BadRequestException({
+        code: 'storage_unavailable',
+        message: 'El almacenamiento de imágenes no está configurado.',
+      });
+    }
+    await this.pool.query(
+      'UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2',
+      [key, userId],
+    );
+    return { avatarUrl: await this.signIfKey(key) };
   }
 
   async updateOrganization(orgId: string, dto: UpdateOrganizationDto) {
