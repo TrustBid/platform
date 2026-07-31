@@ -23,7 +23,9 @@ import { testCrossContract } from './integration/cross-contract';
 //
 // Se tolera únicamente ESE fallo. Cualquier otro error rompe el run como siempre,
 // para no convertir esto en una tapa de regresiones reales.
-const SBT_ADMIN_BLOCKER = /NeedsMoreSignatures|not_admin/i;
+// Ojo: el SDK expone `NeedsMoreSignaturesError` como NOMBRE del error; el mensaje
+// dice "Transaction requires signatures from G...". Hay que mirar ambos.
+const SBT_ADMIN_BLOCKER = /NeedsMoreSignatures|not_admin|requires signatures from/i;
 const blocked: string[] = [];
 
 async function stage(name: string, run: () => Promise<void>): Promise<void> {
@@ -31,7 +33,8 @@ async function stage(name: string, run: () => Promise<void>): Promise<void> {
     await run();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!SBT_ADMIN_BLOCKER.test(msg)) throw err;
+    const kind = err instanceof Error ? `${err.name} ${err.constructor?.name ?? ''}` : '';
+    if (!SBT_ADMIN_BLOCKER.test(`${kind} ${msg}`)) throw err;
     blocked.push(name);
     // Al inicio de línea para que GitHub Actions lo muestre como anotación.
     console.log(
