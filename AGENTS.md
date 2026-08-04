@@ -1,5 +1,73 @@
 # TrustBid — AGENTS.md
 
+## ⚠️ Reglas para agentes de IA — leer antes de tocar nada
+
+El equipo que mantiene este repo **no programa**. Eso significa que nadie va
+a revisar tu diff línea por línea antes de que algo se despliegue — así que
+las reglas de abajo son el único freno real entre "la IA sugirió algo" y "eso
+ya está en producción". No son sugerencias: si una tarea requiere romper una
+de estas reglas, **parar y preguntar explícitamente**, incluso si el usuario
+no lo pidió en esos términos.
+
+### Nunca hacer sin confirmación explícita y específica del humano
+
+- **Desplegar nada**: `caatinga deploy`/`upgrade`, `wrangler deploy`,
+  cualquier acción vía MCP de Railway que cambie estado (variables, redeploy,
+  escalado, dominios). Leer/diagnosticar está bien; publicar no.
+- **Tocar la rama `main` o hacer `git push`** sin que se pida explícitamente
+  en ese mensaje — un "arreglá esto" no incluye permiso para pushear.
+- **Leer o imprimir el valor real de secretos**: `.env*` con datos reales,
+  `STELLAR_SERVER_SECRET`, variables de Railway, tokens de API. Estas cosas
+  mueven fondos reales o dan acceso admin — un secreto expuesto en un log de
+  chat es tan grave como uno filtrado en GitHub.
+- **Cambiar quién puede autorizar algo**: lógica de `require_auth`/admin en
+  `contracts/`, permisos de rol en `apps/api/src/modules/**/guards`, CORS en
+  `apps/api/src/main.ts`. Estos cambios pueden abrir agujeros de seguridad o
+  bloquear a usuarios legítimos — se pueden *proponer*, pero se explican
+  primero (qué cambia, para quién, por qué) antes de aplicarlos.
+- **Ejecutar comandos que reformatean o reescriben archivos enteros que nadie
+  pidió tocar** (`eslint --fix`, `prettier --write`, `npm audit fix --force`,
+  agregar `overrides` en `package.json`) sobre todo el repo. Si hace falta
+  lint/format, correrlo **solo** sobre los archivos que ya se estaban
+  editando por la tarea real. *(Esto ya pasó una vez: un `npm run lint`
+  "para verificar" reformateó 41 archivos sin relación con la tarea.)*
+- **Acciones destructivas de git** (`reset --hard`, `checkout` que descarte
+  cambios, `clean -f`, `push --force`) sin mostrar antes qué se perdería.
+- **Actualizar dependencias a versiones mayores** o agregar dependencias
+  nuevas que compilen código nativo (como pasó con `usb`/Trezor) sin
+  avisar qué se agregó y por qué.
+
+### Siempre hacer
+
+- Antes de decir "listo": correr `npm run contracts:test` +
+  `npm run contracts:build` si se tocó algo en `contracts/`, o el build/test
+  del paquete correspondiente si se tocó `apps/*`. "Compila en mi cabeza" no
+  cuenta.
+- Explicar los cambios en español simple, sin asumir conocimiento de
+  programación — el formato esperado es el de `GUIA-SIMPLE.md` (analogías,
+  qué pasaba / qué se hizo / por qué importa).
+- Si el cambio toca **dinero, contratos inteligentes, autenticación o
+  permisos**, marcarlo explícitamente como algo que necesita revisión humana
+  — aunque los tests pasen. Tests verdes no es lo mismo que "un humano
+  entendió y aprobó esto".
+- Verificar contra el comportamiento real cuando se pueda (`curl` a la URL
+  real, `caatinga doctor`, logs) en vez de asumir que un cambio en el código
+  ya se refleja en producción.
+- Confirmar el alcance antes de una acción con efectos fuera de este
+  repositorio (instalar algo globalmente en la compu, tocar la cuenta de
+  Railway/Cloudflare/GitHub) — un "hacé X" no es autorización para "y de
+  paso Y".
+
+### Zonas de alto riesgo en este repo (pensarlo dos veces)
+
+| Zona | Por qué |
+|---|---|
+| `contracts/contracts/*/src/lib.rs` | Maneja fondos reales; un bug no se puede "deshacer" una vez desplegado en mainnet |
+| `apps/api/src/modules/soroban/soroban.service.ts` | Único punto donde el servidor firma transacciones con la llave real |
+| `apps/api/src/main.ts` (CORS) y `**/guards/*` | Deciden quién puede hablarle al API y qué puede hacer |
+| Cualquier `.env*`, `caatinga.artifacts.json`, secretos de Railway | Credenciales reales |
+| `package.json` / `package-lock.json` en cualquier app | Cambios acá afectan builds de producción de forma no obvia |
+
 ## Repository structure
 
 Monorepo único em `platform/` — Node (Turborepo) + Rust (Soroban contracts).
