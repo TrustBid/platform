@@ -2,12 +2,10 @@
 
 ## ⚠️ Reglas para agentes de IA — leer antes de tocar nada
 
-El equipo que mantiene este repo **no programa**. Eso significa que nadie va
-a revisar tu diff línea por línea antes de que algo se despliegue — así que
-las reglas de abajo son el único freno real entre "la IA sugirió algo" y "eso
-ya está en producción". No son sugerencias: si una tarea requiere romper una
-de estas reglas, **parar y preguntar explícitamente**, incluso si el usuario
-no lo pidió en esos términos.
+Estas reglas son el freno real entre "la IA sugirió algo" y "eso ya está en
+producción". No son sugerencias: si una tarea requiere romper una de estas
+reglas, **parar y preguntar explícitamente**, incluso si no se pidió en esos
+términos.
 
 ### Nunca hacer sin confirmación explícita y específica del humano
 
@@ -43,9 +41,8 @@ no lo pidió en esos términos.
   `npm run contracts:build` si se tocó algo en `contracts/`, o el build/test
   del paquete correspondiente si se tocó `apps/*`. "Compila en mi cabeza" no
   cuenta.
-- Explicar los cambios en español simple, sin asumir conocimiento de
-  programación — el formato esperado es el de `GUIA-SIMPLE.md` (analogías,
-  qué pasaba / qué se hizo / por qué importa).
+- Explicar los cambios en español simple y directo — qué pasaba, qué se
+  hizo, por qué importa — sin jerga innecesaria.
 - Si el cambio toca **dinero, contratos inteligentes, autenticación o
   permisos**, marcarlo explícitamente como algo que necesita revisión humana
   — aunque los tests pasen. Tests verdes no es lo mismo que "un humano
