@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Headers, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Headers, HttpCode, Logger, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { TelegramService } from './telegram.service';
@@ -8,6 +8,8 @@ import type { IncomingMessage } from './bot-channel';
 @Public()
 @Controller('webhooks/telegram')
 export class TelegramController {
+  private readonly logger = new Logger(TelegramController.name);
+
   constructor(
     private readonly tg: TelegramService,
     private readonly bot: BotFlowService,
@@ -25,7 +27,15 @@ export class TelegramController {
       throw new ForbiddenException('invalid secret');
     }
     const msg = this.extract(body);
-    if (msg) this.bot.handleMessage(this.tg, msg).catch(() => undefined);
+    if (!msg) return { ok: true };
+    this.logger.log(`entrante telegram type=${msg.type} chat=${msg.userId}`);
+    // El error se loguea: si se traga en silencio, el bot queda mudo sin dejar rastro.
+    this.bot.handleMessage(this.tg, msg).catch((err: unknown) => {
+      this.logger.error(
+        `handleMessage falló (telegram, chat=${msg.userId}, type=${msg.type})`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    });
     return { ok: true };
   }
 

@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DB_POOL } from '../../database/database.module';
 import { GeminiService } from '../ai/gemini.service';
-import type { InvoiceExtraction } from '../ai/gemini.service';
+import type { ExtractionFailure, InvoiceExtraction } from '../ai/gemini.service';
 import { ProjectsService } from '../projects/projects.service';
 import { ConversationService } from './conversation.service';
 import { EnrollmentService } from './enrollment.service';
@@ -86,16 +86,24 @@ export class BotFlowService {
       await channel.sendText(msg.userId, 'No pude descargar la imagen. Probá enviarla de nuevo.');
       return;
     }
-    const extraction = await this.gemini.extractInvoice(media.buffer, media.mime);
+    const { data: extraction, failure } = await this.gemini.extractInvoiceDetailed(media.buffer, media.mime);
     const amount = extraction?.amount ?? null;
 
-    await this.conv.set(msg.channel, msg.userId, {
-      state: 'awaiting_code',
-      extraction,
-      amount,
-      imageBase64: media.buffer.toString('base64'),
-      mime: media.mime,
-    });
+    // El estado se guarda igual aunque la IA haya fallado: el voluntario puede
+    // completar el monto a mano y la factura ya quedó retenida en la conversación.
+    try {
+      await this.conv.set(msg.channel, msg.userId, {
+        state: 'awaiting_code',
+        extraction,
+        amount,
+        imageBase64: media.buffer.toString('base64'),
+        mime: media.mime,
+      });
+    } catch (err: unknown) {
+      this.logger.error('no se pudo guardar el estado de la conversación', err instanceof Error ? err.stack : err);
+      await channel.sendText(msg.userId, 'Tuve un problema guardando la factura. Probá enviarla de nuevo en un momento.');
+      return;
+    }
 
     // Con proyecto por defecto (invitación por-proyecto): si hay monto, se crea directo.
     if (enrollment.default_project_id) {
@@ -105,22 +113,40 @@ export class BotFlowService {
       }
       await channel.sendText(
         msg.userId,
-        `🧾 Factura de *${extraction?.vendor ?? '—'}* recibida, pero no detecté el monto.\nEscribí el monto: *monto 250*`,
+        `🧾 ${this.readNotice(failure, extraction?.vendor ?? null)}\nEscribí el monto: *monto 250*`,
       );
       return;
     }
 
     // Sin proyecto por defecto → pedir código.
-    const lines = [
-      `🧾 *Datos detectados:*`,
-      `• Proveedor: ${extraction?.vendor ?? '—'}`,
-      `• Monto: ${amount != null ? '$ ' + amount : '— (indicá: "monto 250")'}`,
-      `• Fecha: ${extraction?.invoiceDate ?? '—'}`,
-      '',
-      'Respondé con el *CÓDIGO del proyecto* (ej: ESC01).',
-      'Para corregir el monto: *monto 250*',
-    ];
+    const lines = failure
+      ? [`🧾 ${this.readNotice(failure, null)}`, '', 'Escribí el monto (*monto 250*) y después el *CÓDIGO del proyecto* (ej: ESC01).']
+      : [
+          `🧾 *Datos detectados:*`,
+          `• Proveedor: ${extraction?.vendor ?? '—'}`,
+          `• Monto: ${amount != null ? '$ ' + amount : '— (indicá: "monto 250")'}`,
+          `• Fecha: ${extraction?.invoiceDate ?? '—'}`,
+          '',
+          'Respondé con el *CÓDIGO del proyecto* (ej: ESC01).',
+          'Para corregir el monto: *monto 250*',
+        ];
     await channel.sendText(msg.userId, lines.join('\n'));
+  }
+
+  /** Mensaje honesto según por qué no se pudo leer la factura. */
+  private readNotice(failure: ExtractionFailure | null, vendor: string | null): string {
+    const de = vendor ? `Factura de *${vendor}* recibida, pero ` : '';
+    switch (failure) {
+      case 'quota':
+        return `${de}el lector de facturas está sin cuota por ahora, así que no pude leerla.`;
+      case 'disabled':
+        return `${de}la lectura automática está desactivada.`;
+      case 'unreadable':
+      case 'error':
+        return `${de}no pude leer los datos de la imagen (probá una foto más nítida y completa).`;
+      default:
+        return `${de}no detecté el monto.`;
+    }
   }
 
   private async handleText(channel: BotChannel, msg: IncomingMessage, enrollment: Enrollment): Promise<void> {
