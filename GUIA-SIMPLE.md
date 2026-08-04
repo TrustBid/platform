@@ -1,8 +1,6 @@
-# Guía simple: qué se arregló, qué falta y qué es todo esto
+# Estado del proyecto: qué se arregló, qué falta y por qué
 
-> Este documento está escrito para alguien que **nunca programó**. Si algo suena
-> raro, buscá la palabra en el Glosario al final — está pensado para leerse en
-> paralelo con el resto del documento.
+> Términos técnicos no obvios están linkeados al Glosario al final.
 
 ---
 
@@ -15,7 +13,7 @@ verificar que la plata se usó como se dijo. Tiene tres partes:
 - **La dapp** (`app.trustbid.org`): lo que ve el usuario en el navegador.
 - **El API** (corre en Railway): el "cerebro" que guarda datos, valida
   permisos, y habla con la blockchain.
-- **Los contratos inteligentes**: programitas que viven en la blockchain de
+- **Los contratos inteligentes**: programas que viven en la blockchain de
   Stellar y guardan los registros de gastos y fondos de forma que nadie —
   ni siquiera TrustBid — puede borrar o falsificar después.
 
@@ -31,26 +29,20 @@ inteligentes (porque ahí es donde vive la plata anotada).
 ## 3. Qué es una "IA haciendo esto" — contexto rápido
 
 Yo (Claude) soy un asistente de código: leo archivos, los cambio, corro
-comandos en la terminal, y pruebo que las cosas sigan funcionando — como un
-desarrollador júnior muy rápido, pero que necesita que alguien (vos, el
-dueño del proyecto) revise y apruebe los cambios importantes antes de
-publicarlos. No tengo acceso a tu cuenta de Railway ni a las contraseñas
-reales: todo lo que hice fue sobre el código guardado en tu computadora,
-nada quedó publicado en internet todavía. Vos decidís qué de esto se sube
-("commit") y se despliega.
+comandos en la terminal, y pruebo que las cosas sigan funcionando. No tengo
+acceso a tu cuenta de Railway ni a las contraseñas reales: todo lo que hice
+fue sobre el código guardado en tu computadora, nada quedó publicado en
+internet todavía. Vos decidís qué de esto se sube ("commit") y se despliega.
 
-**Por qué esto importa si nadie del equipo programa:** si nadie puede leer
-el código para chequear qué hizo la IA, la única defensa real es que la
-propia IA tenga reglas escritas que la frenen antes de hacer algo riesgoso
-— no que confíe en que "seguro está bien". Por eso ahora existe un archivo
-[`AGENTS.md`](AGENTS.md) en la raíz del proyecto (con una sección al
-principio pensada para leerse sin saber programar) que dice explícitamente
-qué cosas una IA **nunca debe hacer sola** en este repo: publicar nada,
-tocar contraseñas/secretos reales, cambiar quién tiene permisos de admin,
-o reformatear archivos que nadie pidió tocar. Todo asistente de IA que use
-este repo (Claude Code, y compatibles vía `CLAUDE.md`) lee ese archivo
-automáticamente al empezar — no depende de que alguien se acuerde de
-repetir las reglas cada vez.
+**Por qué existen reglas escritas:** confiar en que un asistente de IA "no
+va a hacer nada riesgoso" no es una garantía — la garantía real es que
+tenga reglas explícitas que lo frenen antes de actuar. Por eso existe
+[`AGENTS.md`](AGENTS.md) en la raíz del proyecto: dice explícitamente qué
+cosas una IA **nunca debe hacer sola** en este repo (publicar nada, tocar
+secretos reales, cambiar permisos de admin, reformatear archivos que nadie
+pidió tocar). Todo asistente compatible (Claude Code vía `CLAUDE.md`, y
+similares) lo lee automáticamente al empezar — no depende de que alguien se
+acuerde de repetir las reglas cada vez.
 
 ---
 
