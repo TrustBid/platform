@@ -9,11 +9,19 @@ async function bootstrap() {
 
   const allowed = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
     .split(',')
-    .map((u) => u.trim());
+    .map((u) => u.replace(/\/$/, '').trim());
 
   app.enableCors({
     origin: (origin, cb) => {
-      if (!origin || allowed.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      const cleanOrigin = origin.replace(/\/$/, '');
+      if (
+        allowed.includes(cleanOrigin) ||
+        cleanOrigin === 'https://trustbid.org' ||
+        cleanOrigin.endsWith('.trustbid.org')
+      ) {
+        return cb(null, true);
+      }
       cb(new Error(`CORS: ${origin} not allowed`));
     },
     credentials: true,
