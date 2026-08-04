@@ -33,6 +33,9 @@ Thumbs.db
 # Soroban / Rust contracts
 contracts/target/
 contracts/.soroban/
+contracts/contracts/*/test_snapshots/
 
 # Contexto de trabajo local (handoff entre sesiones/cuentas de Claude) — no commitear
 CONTEXT.md
+docs/handoff-*.md
+
