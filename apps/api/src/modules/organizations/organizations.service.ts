@@ -260,7 +260,8 @@ export class OrganizationsService {
   }
 
   private inviteUrl(token: string) {
-    const base = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const raw = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const base = raw.split(',')[0].trim();
     return `${base.replace(/\/$/, '')}/register?invite=${token}`;
   }
 
