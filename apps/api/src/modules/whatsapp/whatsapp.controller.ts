@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  Logger,
   Post,
   Query,
   Req,
@@ -15,9 +16,14 @@ import { WhatsappService } from './whatsapp.service';
 import { BotFlowService } from './bot-flow.service';
 import type { IncomingMessage } from './bot-channel';
 
+/** No logueamos el número completo del voluntario. */
+const mask = (id: string): string => (id.length > 4 ? `${id.slice(0, 4)}***` : '***');
+
 @Public()
 @Controller('webhooks/whatsapp')
 export class WhatsappController {
+  private readonly logger = new Logger(WhatsappController.name);
+
   constructor(
     private readonly wa: WhatsappService,
     private readonly bot: BotFlowService,
@@ -49,8 +55,15 @@ export class WhatsappController {
 
     const messages = this.extractMessages(req.body);
     // Fire-and-forget: no bloqueamos la respuesta (WhatsApp reintenta si tarda).
+    // El error se loguea: si se traga en silencio, el bot queda mudo sin dejar rastro.
     for (const msg of messages) {
-      this.bot.handleMessage(this.wa, msg).catch(() => undefined);
+      this.logger.log(`entrante whatsapp type=${msg.type} from=${mask(msg.userId)}`);
+      this.bot.handleMessage(this.wa, msg).catch((err: unknown) => {
+        this.logger.error(
+          `handleMessage falló (whatsapp, from=${mask(msg.userId)}, type=${msg.type})`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      });
     }
     return { received: true };
   }

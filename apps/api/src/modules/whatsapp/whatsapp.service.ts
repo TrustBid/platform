@@ -62,7 +62,17 @@ export class WhatsappService implements BotChannel {
         },
       );
       if (!res.ok) {
-        this.logger.error(`sendText fallo HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        const detail = (await res.text()).slice(0, 300);
+        // 401 + code 190 = token de Meta vencido. Es la causa #1 de "el bot no contesta":
+        // los mensajes entran por el webhook pero no se puede responder.
+        if (res.status === 401 || /"code":\s*190/.test(detail)) {
+          this.logger.error(
+            `WHATSAPP_TOKEN VENCIDO O INVÁLIDO — el bot recibe mensajes pero no puede responder. ` +
+              `Generá un token permanente (System User) en Meta y actualizá WHATSAPP_TOKEN. Detalle: ${detail}`,
+          );
+        } else {
+          this.logger.error(`sendText fallo HTTP ${res.status}: ${detail}`);
+        }
       }
     } catch (err: unknown) {
       this.logger.error('sendText error', err instanceof Error ? err.stack : err);
