@@ -18,12 +18,19 @@ pub enum DataKey {
     Admin,
 }
 
+const DAY_IN_LEDGERS: u32 = 17280;
+const BUMP_THRESHOLD: u32 = 30 * DAY_IN_LEDGERS;
+const BUMP_TO: u32 = 120 * DAY_IN_LEDGERS;
+
 #[contract]
 pub struct ExpenseAnchor;
 
 #[contractimpl]
 impl ExpenseAnchor {
     pub fn initialize(env: Env, admin: Address) {
+        if env.storage().instance().has(&DataKey::Admin) {
+            panic!("already_initialized");
+        }
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
     }
@@ -37,6 +44,11 @@ impl ExpenseAnchor {
         receipt_hash: Bytes,
     ) {
         caller.require_auth();
+        Self::require_caller_is_admin(&env, &caller);
+
+        if env.storage().persistent().has(&DataKey::Expense(expense_id.clone())) {
+            panic!("expense_already_exists");
+        }
 
         let expense = AnchoredExpense {
             expense_id: expense_id.clone(),
@@ -49,7 +61,12 @@ impl ExpenseAnchor {
 
         env.storage()
             .persistent()
-            .set(&DataKey::Expense(expense_id), &expense);
+            .set(&DataKey::Expense(expense_id.clone()), &expense);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Expense(expense_id),
+            BUMP_THRESHOLD,
+            BUMP_TO,
+        );
 
         env.events()
             .publish((Symbol::new(&env, "expense_anchored"),), expense);
@@ -60,7 +77,25 @@ impl ExpenseAnchor {
             .persistent()
             .get(&DataKey::Expense(expense_id))
     }
+
+    // `caller` is signature-verified above via `require_auth`, but that only proves
+    // *someone* signed — not that they're allowed to write. TrustBid anchors are
+    // server-mediated (the API always calls with its own keypair; see
+    // apps/api/src/modules/soroban/soroban.service.ts), so the caller must also be
+    // the on-chain admin, or any address can anchor forged expenses under any
+    // project_id.
+    fn require_caller_is_admin(env: &Env, caller: &Address) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("not_initialized"));
+        if caller != &admin {
+            panic!("not_admin");
+        }
+    }
 }
+
 
 #[cfg(test)]
 mod test {
@@ -139,17 +174,14 @@ mod test {
     }
 
     #[test]
-    fn test_re_anchor_same_id_overwrites() {
+    #[should_panic]
+    fn test_re_anchor_same_id_panics() {
         let (env, client, admin) = setup();
         let expense_id = symbol_short!("exp3");
         let proj = symbol_short!("proj1");
 
         client.anchor(&admin, &expense_id, &proj, &50_0000000, &make_hash(&env, 0x01));
         client.anchor(&admin, &expense_id, &proj, &99_0000000, &make_hash(&env, 0x02));
-
-        let exp = client.get_expense(&expense_id).unwrap();
-        assert_eq!(exp.amount_xlm, 99_0000000);
-        assert_eq!(exp.receipt_hash, make_hash(&env, 0x02));
     }
 
     #[test]
@@ -172,24 +204,20 @@ mod test {
     }
 
     #[test]
-    fn test_different_callers_can_anchor() {
+    #[should_panic]
+    fn test_non_admin_caller_panics() {
         let (env, client, _admin) = setup();
-        let caller_a = Address::generate(&env);
-        let caller_b = Address::generate(&env);
-        let proj = symbol_short!("proj1");
-
-        client.anchor(&caller_a, &symbol_short!("eA"), &proj, &10_0000000, &make_hash(&env, 0x0A));
-        client.anchor(&caller_b, &symbol_short!("eB"), &proj, &20_0000000, &make_hash(&env, 0x0B));
-
-        assert_eq!(client.get_expense(&symbol_short!("eA")).unwrap().submitted_by, caller_a);
-        assert_eq!(client.get_expense(&symbol_short!("eB")).unwrap().submitted_by, caller_b);
+        let intruder = Address::generate(&env);
+        client.anchor(&intruder, &symbol_short!("eA"), &symbol_short!("proj1"), &10_0000000, &make_hash(&env, 0x0A));
     }
 
     #[test]
-    fn test_double_initialize_succeeds() {
+    #[should_panic]
+    fn test_double_initialize_panics() {
         let (_env, client, admin) = setup();
         client.initialize(&admin);
     }
+
 
     #[test]
     fn test_short_receipt_hash_accepted() {

@@ -32,6 +32,10 @@ pub enum DataKey {
     OrgBadges(Address),
 }
 
+const DAY_IN_LEDGERS: u32 = 17280;
+const BUMP_THRESHOLD: u32 = 30 * DAY_IN_LEDGERS;
+const BUMP_TO: u32 = 120 * DAY_IN_LEDGERS;
+
 // ── Contract ─────────────────────────────────────────────────────────────────
 
 #[contract]
@@ -76,6 +80,9 @@ impl SbtBadge {
         env.storage()
             .persistent()
             .set(&DataKey::BadgeById(token_id), &badge);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::BadgeById(token_id), BUMP_THRESHOLD, BUMP_TO);
 
         // org → [token_ids] index
         let mut ids: Vec<u64> = env
@@ -87,6 +94,11 @@ impl SbtBadge {
         env.storage()
             .persistent()
             .set(&DataKey::OrgBadges(organization.clone()), &ids);
+        env.storage().persistent().extend_ttl(
+            &DataKey::OrgBadges(organization.clone()),
+            BUMP_THRESHOLD,
+            BUMP_TO,
+        );
 
         env.events().publish(
             (Symbol::new(&env, "badge_minted"), badge_type),
@@ -118,6 +130,9 @@ impl SbtBadge {
         env.storage()
             .persistent()
             .set(&DataKey::BadgeById(token_id), &badge);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::BadgeById(token_id), BUMP_THRESHOLD, BUMP_TO);
 
         env.events().publish(
             (Symbol::new(&env, "badge_revoked"),),

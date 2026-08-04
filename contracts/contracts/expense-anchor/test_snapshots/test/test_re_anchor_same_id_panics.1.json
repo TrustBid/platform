@@ -32,16 +32,22 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "allocate",
+              "function_name": "anchor",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "symbol": "projA"
+                  "symbol": "exp3"
                 },
                 {
-                  "i128": "1000000000"
+                  "symbol": "proj1"
+                },
+                {
+                  "i128": "500000000"
+                },
+                {
+                  "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                 }
               ]
             }
@@ -50,32 +56,6 @@
         }
       ]
     ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "allocate",
-              "args": [
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "symbol": "projB"
-                },
-                {
-                  "i128": "2000000000"
-                }
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ],
-    [],
     []
   ],
   "ledger": {
@@ -95,10 +75,10 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "Allocation"
+                  "symbol": "Expense"
                 },
                 {
-                  "symbol": "projA"
+                  "symbol": "exp3"
                 }
               ]
             },
@@ -115,10 +95,10 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "Allocation"
+                      "symbol": "Expense"
                     },
                     {
-                      "symbol": "projA"
+                      "symbol": "exp3"
                     }
                   ]
                 },
@@ -127,7 +107,15 @@
                   "map": [
                     {
                       "key": {
-                        "symbol": "allocated_at"
+                        "symbol": "amount_xlm"
+                      },
+                      "val": {
+                        "i128": "500000000"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "anchored_at"
                       },
                       "val": {
                         "u64": "0"
@@ -135,18 +123,10 @@
                     },
                     {
                       "key": {
-                        "symbol": "amount_xlm"
+                        "symbol": "expense_id"
                       },
                       "val": {
-                        "i128": "1000000000"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "organization"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        "symbol": "exp3"
                       }
                     },
                     {
@@ -154,85 +134,23 @@
                         "symbol": "project_id"
                       },
                       "val": {
-                        "symbol": "projA"
+                        "symbol": "proj1"
                       }
-                    }
-                  ]
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          2073600
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-            "key": {
-              "vec": [
-                {
-                  "symbol": "Allocation"
-                },
-                {
-                  "symbol": "projB"
-                }
-              ]
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-                "key": {
-                  "vec": [
-                    {
-                      "symbol": "Allocation"
                     },
                     {
-                      "symbol": "projB"
-                    }
-                  ]
-                },
-                "durability": "persistent",
-                "val": {
-                  "map": [
-                    {
                       "key": {
-                        "symbol": "allocated_at"
+                        "symbol": "receipt_hash"
                       },
                       "val": {
-                        "u64": "0"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     },
                     {
                       "key": {
-                        "symbol": "amount_xlm"
-                      },
-                      "val": {
-                        "i128": "2000000000"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "organization"
+                        "symbol": "submitted_by"
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "project_id"
-                      },
-                      "val": {
-                        "symbol": "projB"
                       }
                     }
                   ]
@@ -311,39 +229,6 @@
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": "801925984706572462"
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": "1033654523790656264"
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": "1033654523790656264"
                   }
                 },
                 "durability": "temporary",
